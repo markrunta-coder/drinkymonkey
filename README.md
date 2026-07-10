@@ -1,15 +1,28 @@
 # Drinkchart — Incident Tree design artifacts
 
 Design artifacts for the deterministic, versioned incident-logging tree
-(spec: `docs/Drinkchart_Incident_Tree_Spec_v0.1.md`). No app code, no UI,
-no AI at runtime.
+(spec: `docs/Drinkchart_Incident_Tree_Spec_v0.1.md`, **rev B** — canonical).
+No app code, no AI at runtime.
 
 | Path | What it is |
 |---|---|
 | `schema/tree-config.schema.json` | JSON Schema for tree configs (documentation + IDE validation) |
 | `config/tree.v1.json` | Seed tree v1 — the spec's node catalog, spawn rules, and floors, verbatim |
-| `db/schema.sql` | Postgres DDL: `users`, `tree_versions`, `arcs`, `answers` |
+| `db/schema.sql` | Postgres DDL: `users`, `tree_versions`, `arcs`, `answers`, metrics/queue views |
 | `tools/lint-tree.mjs` | Config lint — the source of truth for validity (zero dependencies) |
+| `tools/preview.html` | Click-testable preview of any config — renders the canonical JSON generically |
+
+## Preview harness
+
+`tools/preview.html` renders the real `config/tree.v1.json` — one canonical
+config, no embedded copy. Serve the repo root (`python -m http.server`) and
+open `/tools/preview.html`; opened straight from disk it falls back to a file
+picker (browsers block fetch on `file://`). It keeps the floor meter, spawn
+behavior, 3-card cap, skip semantics, tag display, and a live arc-JSON
+inspector whose `answers` are the exact jsonb shapes the database stores.
+Every future tree version is click-testable by pointing it at the new config.
+A headless smoke test drives all four presets through their floors, including
+the delayed→drank 4-tap redirect and tag preservation.
 
 ## How a new tree version ships (no app release)
 
@@ -51,7 +64,7 @@ old app builds.
 | number | `{"number":n}` | |
 | text | `{"text":"…"}` | A5 |
 
-## Decisions made where the spec left room (flag anything wrong)
+## Decisions made where the spec left room (approved, Brief 002)
 
 1. **`input_type` gains `tap`** — the spec's E1/E2 entry type, absent from the
    brief's enum.
@@ -84,13 +97,24 @@ old app builds.
     user resolves them later through the normal O1 flow on the same arc.
 11. **Versions are integers**, not semver — configs are append-only and
     total-ordered; there is nothing for a patch/minor distinction to express.
+12. **B1a is the fourth v1 conditional** (Decision 1, Brief 002): a single
+    "social" chip drills into *going along / enjoying the company*, restoring
+    the 1:1 driver→action mapping. Node ids allow a lowercase drill-down
+    suffix (`B1a`); tag names match the spec's spelling exactly
+    (`broke-own-rule`, `delayed_first`).
 
-## Open questions for the product owner
+## Resolved decisions (Brief 002 — none remaining open)
 
-- Should a live-urge arc left unresolved get the same one-dismissible
-  next-morning nudge as arcs missing the after moment (spec open decision 5)?
-- B1's merged "social" driver vs. the brief's 1:1 driver→action rule: the
-  action library distinguishes social *pressure* from social *connection* —
-  either split the option in v1 or define a merged action mapping.
-- Where do "delayed"-resolved arcs land in dashboard metrics (they are absent
-  from the spec's traceability table)?
+- **Metrics ruling** (spec rev B §6): all consumption metrics and the
+  resisted-vs-drank ratio read the arc's *effective* outcome; the
+  `delayed_first` tag (set by a `tag_rules` entry on O1) feeds the
+  delay-success metric; still-deciding arcs are excluded from all metrics and
+  live only in the open-arc queue. Encoded as the `arcs_for_metrics` and
+  `open_arc_queue` views in `db/schema.sql`.
+- **Nudge policy** (Decision 5): ONE dismissible next-morning notification
+  per arc, unified across drank arcs missing the after moment and unresolved
+  live-urge arcs — tracked by `arcs.nudged_at`; non-null means never again.
+- **Quantity bands** confirmed: 1–2 / 3–4 / 5–6 / 7–9 / 10+ / exact number.
+- **Delayed** confirmed as built: resolvable; still-deciding keeps the arc open.
+- **Onboarding** drops weight/height; **driver start-set** is the spec's
+  8 + other; **backend** is Postgres/Supabase as drafted.

@@ -1,6 +1,6 @@
 {
   "tree_version": 1,
-  "notes": "Seed tree implementing Drinkchart_Incident_Tree_Spec_v0.1 exactly. Driver drill-downs, context-conditional questions, and history-aware prompts are v2+ versions.",
+  "notes": "Seed tree implementing Drinkchart_Incident_Tree_Spec_v0.1 rev B. Four v1 conditionals: F1->F2/F3, B4xO1 broke-own-rule tag, D1 branch resolution, B1=social->B1a. Further drill-downs, context-conditional questions, and history-aware prompts are v2+ versions.",
   "nodes": [
     {
       "id": "E1",
@@ -92,7 +92,19 @@
         { "value": "escape", "label": "Escape" },
         { "value": "other", "label": "Other", "requires_text": true }
       ],
-      "notes": "Primary driver + optional one secondary. Driver drill-downs (stress -> source; social -> pressure vs connection) are v2 tree expansions."
+      "spawn_rules": [{ "if_value": "social", "then_node": "B1a" }],
+      "notes": "Primary driver + optional one secondary. Social drills down via B1a (Decision 1, Brief 002); other driver drill-downs (e.g. stress -> source) are v2 tree expansions."
+    },
+    {
+      "id": "B1a",
+      "moment": "before",
+      "prompt": "Going along, or enjoying it?",
+      "input_type": "single",
+      "options": [
+        { "value": "going_along", "label": "Going along with others" },
+        { "value": "enjoying_company", "label": "Enjoying the company" }
+      ],
+      "notes": "Social drill-down: pressure vs connection. Restores the 1:1 driver->action mapping (going_along -> set the intended limit before arriving) without widening the top-level driver list."
     },
     {
       "id": "B2",
@@ -396,6 +408,11 @@
       "if_value_in": ["wasnt_going_to", "had_a_limit"],
       "if_outcome": "drank",
       "add_tag": "broke-own-rule"
+    },
+    {
+      "node": "O1",
+      "if_value_in": ["delayed"],
+      "add_tag": "delayed_first"
     }
   ]
 }

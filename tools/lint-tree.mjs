@@ -64,8 +64,8 @@ if (typeof cfg.branches !== "object" || cfg.branches === null) {
 // ------------------------------------------------------------------- nodes
 const byId = new Map();
 for (const n of cfg.nodes) {
-  if (typeof n.id !== "string" || !/^[A-Z][A-Z0-9]{0,7}$/.test(n.id)) {
-    err(`node id ${JSON.stringify(n.id)} is invalid (expected uppercase like "O1", "B3A")`);
+  if (typeof n.id !== "string" || !/^[A-Z][A-Za-z0-9]{0,7}$/.test(n.id)) {
+    err(`node id ${JSON.stringify(n.id)} is invalid (expected e.g. "O1", "B3A", drill-down "B1a")`);
     continue;
   }
   if (byId.has(n.id)) {
@@ -227,8 +227,8 @@ for (const [id, n] of byId) {
 // --------------------------------------------------------------- tag rules
 for (const [i, t] of (cfg.tag_rules ?? []).entries()) {
   const where = `tag_rules[${i}]`;
-  if (typeof t.add_tag !== "string" || !/^[a-z0-9-]+$/.test(t.add_tag)) {
-    err(`${where}: add_tag ${JSON.stringify(t.add_tag)} is invalid (lowercase kebab-case)`);
+  if (typeof t.add_tag !== "string" || !/^[a-z0-9][a-z0-9_-]*$/.test(t.add_tag)) {
+    err(`${where}: add_tag ${JSON.stringify(t.add_tag)} is invalid (lowercase, - or _ separators)`);
   }
   const n = byId.get(t.node);
   if (!n) {

@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drinkchart — Incident Tree Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#232E38; --paper:#F6F5F1; --card:#FFFFFF; --line:#DDD9CE;
+    --text:#2B2925; --sub:#6E6A61;
+    --sage:#4F7263; --sage-soft:#E3EBE6; --sage-line:#B9CDC2;
+    --amber:#A97B2F; --amber-soft:#F3E8D3;
+    --insp-bg:#1B222A; --insp-key:#8FB8A4; --insp-val:#D9B36B; --insp-mut:#77828E;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{background:var(--ink); font-family:'Inter',system-ui,sans-serif; color:var(--text);}
+  button{font:inherit; cursor:pointer;}
+  button:focus-visible, a:focus-visible{outline:2px solid var(--sage); outline-offset:2px;}
+  @media (prefers-reduced-motion:no-preference){
+    .card{animation:rise .25s ease both;}
+    @keyframes rise{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
+  }
+
+  /* ---------- top bar ---------- */
+  header{display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:14px 20px; color:#E8E4DB;}
+  header h1{font-family:'Fraunces',serif; font-weight:500; font-size:17px; letter-spacing:.2px; margin-right:auto;}
+  header h1 span{color:#9FB3A8; font-family:'Inter'; font-size:11px; font-weight:500; letter-spacing:.12em; text-transform:uppercase; margin-left:10px;}
+  .presets{display:flex; gap:8px; flex-wrap:wrap;}
+  .presets button{background:transparent; border:1px solid #43505C; color:#C9CFC9; border-radius:99px; padding:6px 14px; font-size:12.5px;}
+  .presets button:hover{border-color:#8FB8A4; color:#fff;}
+  .presets .reset{border-style:dashed;}
+
+  /* ---------- layout ---------- */
+  .stage{display:flex; gap:22px; justify-content:center; align-items:flex-start; padding:8px 20px 40px; flex-wrap:wrap;}
+  .phone{width:390px; max-width:100%; background:var(--paper); border-radius:26px; border:1px solid #0e141a;
+         box-shadow:0 18px 50px rgba(0,0,0,.45); overflow:hidden; display:flex; flex-direction:column; min-height:640px;}
+  .phone-top{padding:16px 18px 10px; border-bottom:1px solid var(--line); background:var(--paper); position:sticky; top:0; z-index:5;}
+  .phone-top .app{font-family:'Fraunces',serif; font-size:15px; color:var(--sub);}
+  .screen{padding:16px 18px 26px; flex:1;}
+
+  /* ---------- floor meter ---------- */
+  .floor{display:flex; align-items:center; gap:8px; margin-top:10px;}
+  .floor .segs{display:flex; gap:4px;}
+  .floor .seg{width:26px; height:5px; border-radius:3px; background:var(--line);}
+  .floor .seg.on{background:var(--sage);}
+  .floor .lbl{font-size:11px; color:var(--sub); letter-spacing:.02em;}
+  .floor.met .lbl{color:var(--sage); font-weight:600;}
+
+  /* ---------- cards & chips ---------- */
+  .moment{margin-top:22px;}
+  .eyebrow{font-size:10.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--sub); margin-bottom:8px;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 14px 12px; margin-bottom:10px;}
+  .card .q{font-family:'Fraunces',serif; font-size:15.5px; font-weight:500; margin-bottom:10px; line-height:1.35;}
+  .card .q + .q{margin-top:12px;}
+  .chips{display:flex; flex-wrap:wrap; gap:7px;}
+  .chips + .q{margin-top:12px;}
+  .chip{border:1px solid var(--line); background:var(--paper); border-radius:99px; padding:7px 13px; font-size:13px; color:var(--text);}
+  .chip:hover{border-color:var(--sage-line);}
+  .chip.sel{background:var(--sage-soft); border-color:var(--sage); color:#2F4A3F; font-weight:500;}
+  .chip.sec{background:var(--paper); border-color:var(--sage); border-style:dashed; color:#2F4A3F;}
+  .chip.sec::after{content:" · also"; font-size:11px; color:var(--sub);}
+  .hint{font-size:11px; color:var(--sub); margin-top:7px;}
+  .card .skip{border:none; background:none; color:var(--sub); font-size:12px; margin-top:9px; text-decoration:underline; text-underline-offset:3px;}
+  .card.skipped{opacity:.45;}
+  .card input[type=number]{border:1px solid var(--line); border-radius:8px; padding:6px 10px; width:84px; font:inherit;}
+  .card input[type=datetime-local]{border:1px solid var(--line); border-radius:8px; padding:6px 10px; font:inherit; font-size:13px;}
+  .card input[type=text]{width:100%; border:1px solid var(--line); border-radius:8px; padding:7px 10px; font:inherit; font-size:13px; margin-top:8px;}
+  .extra{margin-top:8px; font-size:13px; color:var(--sub); display:flex; align-items:center; gap:8px;}
+  textarea{width:100%; border:1px solid var(--line); border-radius:12px; padding:10px 12px; font:inherit; font-size:13px; resize:vertical; min-height:54px; background:var(--card);}
+  textarea::placeholder{color:#A29D92;}
+  .more{width:100%; border:1px dashed var(--line); background:none; border-radius:12px; padding:9px; color:var(--sub); font-size:12.5px; margin-bottom:10px;}
+  .rule-tag{display:inline-flex; align-items:center; gap:6px; background:var(--amber-soft); color:#7A5A22; border-radius:99px; padding:5px 12px; font-size:12px; font-weight:500; margin:8px 8px 0 0;}
+
+  /* ---------- entry / hero ---------- */
+  .hero{padding-top:34px; text-align:center;}
+  .hero .voice{font-family:'Fraunces',serif; font-size:22px; font-weight:500; line-height:1.35; margin-bottom:6px;}
+  .hero .sub{color:var(--sub); font-size:13px; margin-bottom:26px;}
+  .bigbtn{display:block; width:100%; border-radius:16px; padding:16px; font-size:15px; font-weight:600; border:1px solid var(--line); background:var(--card); margin-bottom:12px;}
+  .bigbtn.primary{background:var(--sage); border-color:var(--sage); color:#fff;}
+  .bigbtn small{display:block; font-weight:400; font-size:12px; color:var(--sub); margin-top:3px;}
+  .bigbtn.primary small{color:#DCE8E1;}
+
+  .quiet{color:var(--sub); font-size:13px; line-height:1.5;}
+  .later{display:flex; align-items:center; gap:10px; color:var(--sub); font-size:11px; letter-spacing:.14em; text-transform:uppercase; margin:26px 0 14px;}
+  .later::before,.later::after{content:""; flex:1; height:1px; background:var(--line);}
+
+  .savebar{position:sticky; bottom:0; background:linear-gradient(to top, var(--paper) 70%, transparent); padding:14px 0 4px;}
+  .save{width:100%; border-radius:14px; padding:14px; font-size:15px; font-weight:600; border:none; background:var(--sage); color:#fff;}
+  .save:disabled{background:#C6CFC9; cursor:not-allowed;}
+
+  /* ---------- summary ---------- */
+  .done-check{width:44px; height:44px; border-radius:50%; background:var(--sage-soft); color:var(--sage); display:flex; align-items:center; justify-content:center; font-size:20px; margin:20px auto 12px;}
+  .feeds{margin-top:16px;}
+  .feeds li{list-style:none; border-left:3px solid var(--sage-line); padding:7px 0 7px 12px; font-size:13px; color:var(--text); margin-bottom:6px;}
+  .feeds li b{display:block; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--sub); font-weight:600; margin-bottom:2px;}
+
+  /* ---------- loader ---------- */
+  .loader{padding:40px 24px; text-align:center;}
+  .loader .voice{font-family:'Fraunces',serif; font-size:19px; margin-bottom:10px;}
+  .loader p{color:var(--sub); font-size:13px; line-height:1.6; margin-bottom:18px;}
+  .loader input[type=file]{font-size:13px;}
+
+  /* ---------- inspector ---------- */
+  .inspector{width:430px; max-width:100%; background:var(--insp-bg); border-radius:18px; padding:18px 18px 22px; color:#C7CDD4; box-shadow:0 18px 50px rgba(0,0,0,.35);}
+  .inspector h2{font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--insp-mut); margin-bottom:12px; font-weight:600;}
+  .inspector pre{font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.65; white-space:pre-wrap; word-break:break-word;}
+  .k{color:var(--insp-key);} .v{color:var(--insp-val);} .m{color:var(--insp-mut);}
+  .insp-note{border-top:1px solid #2A333D; margin-top:14px; padding-top:12px; font-size:12px; color:var(--insp-mut); line-height:1.6;}
+  @media (max-width:900px){ .inspector{width:390px;} }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Drinkchart <span id="hdrVersion">incident tree · preview</span></h1>
+  <div class="presets">
+    <button data-preset="live">Live urge</button>
+    <button data-preset="drank">Drank</button>
+    <button data-preset="resisted">Resisted</button>
+    <button data-preset="delayed">Delayed</button>
+    <button class="reset" data-preset="reset">Reset</button>
+  </div>
+</header>
+
+<div class="stage">
+  <div class="phone">
+    <div class="phone-top">
+      <div class="app">drinkchart</div>
+      <div class="floor" id="floorMeter"></div>
+    </div>
+    <div class="screen" id="screen"></div>
+  </div>
+
+  <aside class="inspector">
+    <h2>Arc — live data</h2>
+    <pre id="insp"></pre>
+    <div class="insp-note" id="inspNote"></div>
+  </aside>
+</div>
+
+<script>
+"use strict";
+/* Drinkchart incident-tree preview harness.
+   Renders config/tree.v1.json (or any config passed via the file picker)
+   completely generically — no per-question code. Deterministic; no AI. */
+
+const CONFIG_URL = "../config/tree.v1.json";
+
+/* Presentation-only: spec section 6 traceability, shown on the saved screen.
+   Not part of the config — the tree does not know what reads it. */
+const FEEDS = {
+  B1:  ["Drivers", "primary drivers · driver × quantity · action selection"],
+  B1a: ["Drivers", "social: going along vs. enjoying → 1:1 action mapping"],
+  B4:  ["Dissonance", "broke-own-rule rate (intention vs. outcome)"],
+  F5:  ["Entrapment", "turmoil trend — “am I stuck?” over 30/90 days"],
+  A4:  ["Entrapment", "turmoil trend — “am I stuck?” over 30/90 days"],
+  A1:  ["Promise gap", "expected benefit vs. what it delivered"],
+  F2:  ["Your tactics", "how long you hold out, and what that predicts"],
+  F6:  ["Your tactics", "resistance moves that work for you"],
+  O1:  ["The record", "resisted-vs-drank ratio — the wins"],
+  D1:  ["Delay success", "how often delaying means not drinking"],
+  QTY: ["Consumption", "weekly · per-day · heavy sessions · AF days"],
+  T1:  ["Consumption", "timing & consecutive-day patterns"],
+  M1:  ["Consumption", "session pace"],
+  B2:  ["Context", "feeling patterns before incidents"],
+  B3A: ["Context", "place & company patterns"],
+  B3B: ["Context", "place & company patterns"],
+  journal: ["Self-talk", "recurring themes read across entries (narration layer)"]
+};
+
+const MOMENT_TITLES = {
+  before:  () => "Before — what was true",
+  fight:   () => "The fight",
+  after:   (eff) => eff === "drank" ? "After — the verdict (now or tomorrow)" : "After",
+  metrics: () => "Details — if useful"
+};
+const CARD_CAP = 3;
+
+let TREE = null;      // loaded config
+let NODES = {};       // id -> node
+let SOURCE = "";      // where the config came from
+let S = null;         // session state
+
+/* ================= state ================= */
+function blank() {
+  return {
+    mode: null, liveOpen: false, saved: false,
+    skipped: {}, moreShown: {},
+    arc: {
+      tree_version: TREE ? TREE.tree_version : null,
+      entry: null, urge_at: null,
+      status: "open", outcome: null,
+      tags: [],
+      answers: {},   // node_id -> canonical jsonb shape, exactly what the DB would hold
+      journal: {}    // per-moment free text (render-level affordance)
+    }
+  };
+}
+function reset() { S = blank(); render(); }
+
+/* ================= derivations ================= */
+const node = (id) => NODES[id];
+const ans = (id) => S.arc.answers[id];
+const rawOutcome = () => ans("O1") ? ans("O1").value : null;
+const resolution = () => ans("D1") ? ans("D1").value : null;
+
+function effOutcome() {
+  const o = rawOutcome();
+  if (o !== "delayed") return o;
+  if (resolution() === "drank_anyway") return "drank";
+  if (resolution() === "didnt_drink") return "resisted";
+  return null;
+}
+const stillDeciding = () => rawOutcome() === "delayed" && resolution() === "still_deciding";
+
+/* Required minimum: the raw branch's floor, plus — on a D1 redirect — the
+   target branch's floor nodes not already covered (delayed→drank adds QTY:
+   4 taps total for that arc; each branch's own floor stays ≤3. Spec rev B footnote). */
+function requiredIds() {
+  const o = rawOutcome();
+  if (!o) return ["O1"];
+  const ids = [...TREE.branches[o].floor];
+  const eff = effOutcome();
+  if (o === "delayed" && eff) {
+    for (const id of TREE.branches[eff].floor) if (!ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
+
+function selectedOption(n, a) {
+  return (n.options || []).find((o) => o.value === a.value);
+}
+function answeredComplete(id) {
+  const a = ans(id), n = node(id);
+  if (!a || !n) return false;
+  switch (n.input_type) {
+    case "tap": return true;
+    case "single": case "chips": {
+      if (!a.value) return false;
+      const opt = selectedOption(n, a);
+      if (opt && opt.requires_number && (a.number === undefined || a.number === null || a.number === "")) return false;
+      if (opt && opt.requires_datetime && !a.datetime) return false;
+      return true;
+    }
+    case "multi": return !!(a.values && a.values.length);
+    case "number": return a.number !== undefined && a.number !== null && a.number !== "";
+    case "text": return !!(a.text && a.text.trim());
+    default: return false;
+  }
+}
+function floorMet() {
+  return !!rawOutcome() && !stillDeciding() && requiredIds().every(answeredComplete);
+}
+
+/* Deterministic tags, straight from the config's tag_rules. */
+function answerHasValue(a, v) {
+  if (!a) return false;
+  return a.value === v || a.secondary === v || (a.values || []).includes(v);
+}
+function applyTags() {
+  const tags = [];
+  for (const rule of TREE.tag_rules || []) {
+    const a = ans(rule.node);
+    const hit = (rule.if_value_in || []).some((v) => answerHasValue(a, v));
+    const outcomeOk = !rule.if_outcome || effOutcome() === rule.if_outcome;
+    if (hit && outcomeOk) tags.push(rule.add_tag);
+  }
+  S.arc.tags = tags;
+}
+function syncArc() {
+  applyTags();
+  S.arc.outcome = effOutcome() || rawOutcome(); // delayed until D1 resolves — DB semantics
+  S.arc.status = floorMet() ? "complete" : "open";
+}
+
+/* ================= answering ================= */
+function setAnswer(id, a) {
+  if (a === null) delete S.arc.answers[id];
+  else S.arc.answers[id] = a;
+  delete S.skipped[id];
+  syncArc(); render();
+}
+function answerChip(id, v) {
+  const n = node(id), cur = ans(id);
+  if (n.input_type === "multi") {
+    const values = cur && cur.values ? [...cur.values] : [];
+    const i = values.indexOf(v);
+    if (i >= 0) values.splice(i, 1);
+    else if (!n.max_select || values.length < n.max_select) values.push(v);
+    setAnswer(id, values.length ? { ...(cur || {}), values } : (cur && cur.text ? { text: cur.text } : null));
+    return;
+  }
+  // single / chips
+  if (n.allow_secondary && cur && cur.value) {
+    if (cur.value === v) { setAnswer(id, null); return; }              // clear all
+    if (cur.secondary === v) {                                          // clear secondary
+      const a = { ...cur }; delete a.secondary; setAnswer(id, a); return;
+    }
+    setAnswer(id, { ...cur, secondary: v }); return;                    // set/replace secondary
+  }
+  if (cur && cur.value === v) { setAnswer(id, null); return; }          // toggle off
+  setAnswer(id, { value: v });                                          // fresh pick drops stale extras
+}
+function mergeAnswer(id, patch) {
+  const cur = ans(id) || {};
+  const a = { ...cur, ...patch };
+  for (const k of Object.keys(a)) if (a[k] === "" || a[k] === null) delete a[k];
+  setAnswer(id, Object.keys(a).length ? a : null);
+}
+function skipNodes(ids) {
+  for (const id of ids.split(",")) {
+    S.skipped[id] = true;
+    delete S.arc.answers[id];
+  }
+  syncArc(); render();
+}
+
+/* ================= presets ================= */
+function stamp() { return new Date().toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }); }
+function preset(p) {
+  if (!TREE) return;
+  S = blank();
+  if (p === "reset") { render(); return; }
+  if (p === "live") {
+    S.mode = "live";
+    S.arc.entry = "urge_now";
+    S.arc.urge_at = stamp();
+    S.arc.answers.E1 = { value: "tapped" };
+    syncArc();
+  } else {
+    S.mode = "log";
+    S.arc.entry = "retrospective";
+    S.arc.answers.O1 = { value: p };
+    syncArc();
+  }
+  render();
+}
+
+/* ================= rendering ================= */
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+
+function render() { renderFloor(); renderScreen(); renderInspector(); }
+
+function renderFloor() {
+  const el = $("#floorMeter");
+  if (!TREE || !S || !S.mode || (S.mode === "live" && !S.liveOpen)) { el.innerHTML = ""; el.className = "floor"; return; }
+  const req = requiredIds();
+  const done = req.filter(answeredComplete).length;
+  const met = floorMet();
+  el.className = "floor" + (met ? " met" : "");
+  const lbl = stillDeciding() ? "still deciding — the arc stays open"
+    : met ? `Floor reached · ${req.length} taps ✓`
+    : `${done}/${req.length} required taps — everything else is optional`;
+  el.innerHTML = `<div class="segs">${req.map((_, i) => `<div class="seg ${i < done ? "on" : ""}"></div>`).join("")}</div>
+                  <div class="lbl">${lbl}</div>`;
+}
+
+function chipRowHTML(n) {
+  const a = ans(n.id) || {};
+  return `<div class="chips">${(n.options || []).map((o) => {
+    const isSel = n.input_type === "multi" ? (a.values || []).includes(o.value) : a.value === o.value;
+    const isSec = a.secondary === o.value;
+    return `<button class="chip ${isSel ? "sel" : ""} ${isSec ? "sec" : ""}"
+      data-act="chip" data-node="${n.id}" data-val="${esc(o.value)}">${esc(o.label)}</button>`;
+  }).join("")}</div>`;
+}
+
+function extrasHTML(n) {
+  const a = ans(n.id) || {};
+  const opt = a.value !== undefined ? selectedOption(n, a) : null;
+  let html = "";
+  if (opt && opt.requires_number) {
+    html += `<div class="extra">exactly <input type="number" min="1" data-act="number" data-node="${n.id}"
+      value="${a.number !== undefined ? esc(a.number) : ""}"> drinks</div>`;
+  }
+  if (opt && opt.requires_datetime) {
+    html += `<div class="extra"><input type="datetime-local" data-act="datetime" data-node="${n.id}"
+      value="${a.datetime ? esc(a.datetime) : ""}"></div>`;
+  }
+  if ((opt && opt.requires_text) || n.allow_free_text) {
+    html += `<input type="text" placeholder="in your own words…" data-act="text" data-node="${n.id}"
+      value="${a.text ? esc(a.text) : ""}">`;
+  }
+  if (n.allow_secondary) {
+    html += `<div class="hint">${a.value ? (a.secondary ? "primary + secondary set — tap to change" : "tap another to add a secondary (optional)") : "pick the main one — you can add a second"}</div>`;
+  }
+  return html;
+}
+
+function nodeBodyHTML(n) {
+  const a = ans(n.id) || {};
+  switch (n.input_type) {
+    case "single": case "chips": case "multi":
+      return chipRowHTML(n) + extrasHTML(n);
+    case "number":
+      return `<div class="extra"><input type="number" min="1" data-act="number" data-node="${n.id}"
+        value="${a.number !== undefined ? esc(a.number) : ""}"></div>`;
+    case "text":
+      return `<textarea placeholder="Anything else, in your own words…" data-act="text"
+        data-node="${n.id}">${a.text ? esc(a.text) : ""}</textarea>`;
+    default:
+      return "";
+  }
+}
+
+/* One card = one node, or several consecutive nodes sharing a card_group. */
+function cardHTML(ids) {
+  const ns = ids.map(node).filter(Boolean);
+  if (!ns.length) return "";
+  const skippable = ns.every((n) => !n.required);
+  const skippedAll = ns.every((n) => S.skipped[n.id]);
+  const inner = ns.map((n) => `<div class="q">${esc(n.prompt)}</div>${nodeBodyHTML(n)}`).join("");
+  const spawned = ns.flatMap((n) =>
+    (n.spawn_rules || [])
+      .filter((r) => r.then_node && (r.if_value === "*" ? !!ans(n.id) : answerHasValue(ans(n.id), r.if_value)))
+      .map((r) => cardHTML([r.then_node]))
+  ).join("");
+  return `<div class="card ${skippedAll ? "skipped" : ""}">${inner}
+      ${skippable ? `<button class="skip" data-act="skip" data-node="${ids.join(",")}">skip</button>` : ""}
+    </div>${spawned}`;
+}
+
+/* Group consecutive ids that share a card_group. */
+function groupIds(ids) {
+  const groups = [];
+  for (const id of ids) {
+    const g = node(id) && node(id).card_group;
+    const last = groups[groups.length - 1];
+    if (g && last && last.group === g) last.ids.push(id);
+    else groups.push({ group: g || null, ids: [id] });
+  }
+  return groups;
+}
+
+function momentBlockHTML(momentKey, ids, eff) {
+  const groups = groupIds(ids);
+  const shown = S.moreShown[momentKey] ? groups : groups.slice(0, CARD_CAP);
+  const moreN = groups.length - CARD_CAP;
+  const hasTextNode = ids.some((id) => node(id) && node(id).input_type === "text");
+  const journal = hasTextNode ? "" :
+    `<textarea placeholder="Anything else, in your own words…" data-act="journal"
+      data-moment="${momentKey}">${S.arc.journal[momentKey] ? esc(S.arc.journal[momentKey]) : ""}</textarea>`;
+  return `<div class="moment"><div class="eyebrow">${MOMENT_TITLES[momentKey](eff)}</div>
+    ${shown.map((g) => cardHTML(g.ids)).join("")}
+    ${(!S.moreShown[momentKey] && moreN > 0) ? `<button class="more" data-act="more" data-moment="${momentKey}">+ ${moreN} more — only if you feel like it</button>` : ""}
+    ${journal}
+  </div>`;
+}
+
+function tagsHTML() {
+  return S.arc.tags.map((t) => `<div class="rule-tag">● ${esc(t)} — tagged, not judged</div>`).join("");
+}
+
+function renderScreen() {
+  const el = $("#screen");
+
+  /* -------- config not loaded -------- */
+  if (!TREE) {
+    el.innerHTML = `<div class="loader">
+      <div class="voice">Load a tree config</div>
+      <p>Fetching <code>${CONFIG_URL}</code> failed — browsers block fetch on file:// pages.
+      Serve the repo root (e.g. <code>python -m http.server</code>) and open
+      <code>/tools/preview.html</code>, or pick the config by hand:</p>
+      <input type="file" accept=".json" id="filePick">
+    </div>`;
+    const fp = $("#filePick");
+    if (fp) fp.addEventListener("change", (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      f.text().then((t) => initTree(JSON.parse(t), f.name))
+        .catch((err) => alert("Could not parse config: " + err.message));
+    });
+    return;
+  }
+
+  /* -------- entry -------- */
+  if (!S.mode) {
+    const e1 = node("E1"), e2 = node("E2");
+    el.innerHTML = `<div class="hero">
+      <div class="voice">What's happening?</div>
+      <div class="sub">One tap is a complete entry. Everything else is optional, always.</div>
+      <button class="bigbtn primary" data-preset="live">${esc(e1 ? e1.prompt : "Urge right now")}<small>logs the moment — we'll leave you alone after</small></button>
+      <button class="bigbtn" data-act="log-entry">${esc(e2 ? e2.prompt : "Log something")}<small>a drink, a win, a maybe — from today or before</small></button>
+    </div>`;
+    return;
+  }
+
+  /* -------- live urge capture -------- */
+  if (S.mode === "live" && !S.liveOpen) {
+    const chips = (TREE.branches.live.entry_chips || []);
+    el.innerHTML = `
+      <div class="moment"><div class="eyebrow">Logged · ${esc(S.arc.urge_at)}</div>
+      <p class="quiet" style="margin-bottom:14px">Got it. That's enough — this counts. Add a detail if you want, or just close the app.</p>
+      ${groupIds(chips).map((g) => cardHTML(g.ids)).join("")}
+      <textarea placeholder="What's underneath it, if you know…" data-act="journal" data-moment="before">${S.arc.journal.before ? esc(S.arc.journal.before) : ""}</textarea>
+      </div>
+      <div class="later">later</div>
+      <p class="quiet" style="margin-bottom:12px">The arc stays open. Whenever you're ready — tonight, tomorrow morning — pick it back up and say how it ended.</p>
+      <button class="bigbtn" data-act="resolve-live">Pick it back up →</button>`;
+    return;
+  }
+
+  /* -------- saved summary -------- */
+  if (S.saved) {
+    const answered = Object.keys(S.arc.answers).filter(answeredComplete);
+    if (Object.values(S.arc.journal).some((t) => t && t.trim())) answered.push("journal");
+    const seen = new Set(), items = [];
+    for (const id of answered) {
+      const f = FEEDS[id];
+      if (f && !seen.has(f[0])) { seen.add(f[0]); items.push(f); }
+    }
+    el.innerHTML = `<div class="done-check">✓</div>
+      <div class="hero" style="padding-top:0">
+        <div class="voice">Saved.</div>
+        <div class="sub">${S.arc.tags.includes("broke-own-rule") ? "Rule broken, honestly logged — that’s the point of this thing." : "No verdict from us. It’s on the record, and the record is yours."}</div>
+      </div>
+      <div class="eyebrow" style="margin-top:6px">What this one feeds</div>
+      <ul class="feeds">${items.map((f) => `<li><b>${f[0]}</b>${f[1]}</li>`).join("")}</ul>
+      <button class="bigbtn" style="margin-top:18px" data-preset="reset">Log another</button>`;
+    return;
+  }
+
+  /* -------- still deciding: arc stays open -------- */
+  if (stillDeciding()) {
+    const before = (TREE.branches.delayed.cards && TREE.branches.delayed.cards.before) || [];
+    el.innerHTML = `${cardHTML(["O1"])}
+      <div class="hero" style="padding-top:18px">
+        <div class="voice" style="font-size:18px">Okay — still deciding.</div>
+        <div class="sub">The arc stays open. No pressure either way; come back when it's settled.</div>
+      </div>
+      ${momentBlockHTML("before", before, null)}
+      ${tagsHTML()}`;
+    return;
+  }
+
+  /* -------- retrospective flow: floor first, then invited depth -------- */
+  let html = "";
+  for (const id of requiredIds()) {
+    // O1's spawn rule renders D1 inline, so skip D1 here to avoid doubling.
+    if (id === "D1" && rawOutcome() === "delayed") { if (!answeredComplete("O1")) break; continue; }
+    html += cardHTML([id]);
+    if (!answeredComplete(id)) break;
+  }
+
+  const eff = effOutcome();
+  if (eff && floorMet()) {
+    const cards = TREE.branches[eff].cards || {};
+    for (const m of ["before", "fight", "after", "metrics"]) {
+      if (cards[m] && cards[m].length) html += momentBlockHTML(m, cards[m], eff);
+    }
+  }
+  html += tagsHTML();
+  html += `<div class="savebar"><button class="save" ${floorMet() ? "" : "disabled"} data-act="save">${floorMet() ? "Save incident" : "Save unlocks at the floor"}</button></div>`;
+  el.innerHTML = html;
+}
+
+/* -------- inspector -------- */
+function renderInspector() {
+  const a = S ? S.arc : { tree_version: TREE ? TREE.tree_version : null };
+  const j = JSON.stringify(a, null, 2)
+    .replace(/"([^"]+)":/g, '<span class="k">"$1"</span>:')
+    .replace(/: "([^"]*)"/g, ': <span class="v">"$1"</span>')
+    .replace(/\b(null|true|false)\b/g, '<span class="m">$1</span>');
+  $("#insp").innerHTML = j;
+  const req = S && TREE && S.mode && !(S.mode === "live" && !S.liveOpen)
+    ? `required taps: ${requiredIds().filter(answeredComplete).length}/${requiredIds().length} · floor ${floorMet() ? "met ✓" : "not yet"}<br>` : "";
+  $("#inspNote").innerHTML = req +
+    `config: <b>${esc(SOURCE || "not loaded")}</b>${TREE ? ` · tree_version ${TREE.tree_version} · ${TREE.nodes.length} nodes` : ""}<br>` +
+    "Rendered generically from the canonical versioned config — no per-question code. " +
+    "New tree = new config, no app release. Deterministic; no AI at runtime. " +
+    "<code>answers</code> above are the exact jsonb shapes the database stores.";
+}
+
+/* ================= events (delegated) ================= */
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-preset],[data-act]");
+  if (!btn) return;
+  if (btn.dataset.preset) { preset(btn.dataset.preset); return; }
+  switch (btn.dataset.act) {
+    case "chip": answerChip(btn.dataset.node, btn.dataset.val); break;
+    case "skip": skipNodes(btn.dataset.node); break;
+    case "more": S.moreShown[btn.dataset.moment] = true; render(); break;
+    case "save": S.saved = true; syncArc(); render(); break;
+    case "log-entry": S = blank(); S.mode = "log"; S.arc.entry = "retrospective"; render(); break;
+    case "resolve-live": S.liveOpen = true; S.mode = "log"; render(); break;
+  }
+});
+document.addEventListener("change", (e) => {
+  const el = e.target.closest("[data-act]");
+  if (!el) return;
+  switch (el.dataset.act) {
+    case "text": mergeAnswer(el.dataset.node, { text: el.value }); break;
+    case "number": mergeAnswer(el.dataset.node, { number: el.value === "" ? null : Number(el.value) }); break;
+    case "datetime": mergeAnswer(el.dataset.node, { datetime: el.value }); break;
+    case "journal":
+      S.arc.journal[el.dataset.moment] = el.value;
+      if (!el.value) delete S.arc.journal[el.dataset.moment];
+      renderInspector(); break;
+  }
+});
+
+/* ================= boot ================= */
+function initTree(cfg, label) {
+  TREE = cfg;
+  NODES = Object.fromEntries(cfg.nodes.map((n) => [n.id, n]));
+  SOURCE = label;
+  $("#hdrVersion").textContent = `incident tree · v${cfg.tree_version} · deterministic config preview`;
+  reset();
+}
+(async function boot() {
+  try {
+    const res = await fetch(CONFIG_URL);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    initTree(await res.json(), "config/tree.v1.json (fetched)");
+  } catch (e) {
+    render(); // shows the loader with file-input fallback
+    renderInspector();
+  }
+})();
+</script>
+</body>
+</html>

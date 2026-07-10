@@ -35,6 +35,7 @@ create table arcs (
     status        text not null default 'open' check (status in ('open', 'complete')),
     occurred_at   timestamptz,
     tags          text[] not null default '{}',
+    nudged_at     timestamptz,
     created_at    timestamptz not null default now(),
     updated_at    timestamptz not null default now()
 );
@@ -49,7 +50,9 @@ comment on column arcs.status is
 comment on column arcs.occurred_at is
     'When the incident happened, denormalized from the T1 answer for querying (answered_at on T1 is when it was logged, not when it happened).';
 comment on column arcs.tags is
-    'Deterministic tags from the config''s tag_rules (e.g. broke-own-rule), recomputed by code whenever a contributing answer changes.';
+    'Deterministic tags from the config''s tag_rules, recomputed by code whenever a contributing answer changes. broke-own-rule = B4 intention x drank outcome; delayed_first = O1 was delayed — preserved after D1 resolves so the delay-success metric can read it against the effective outcome.';
+comment on column arcs.nudged_at is
+    'Nudge policy (Brief 002, decision 5): ONE dismissible next-morning notification per arc, unified across (a) drank arcs missing the after moment and (b) unresolved live-urge arcs. Set when the nudge is sent; a non-null value means never nudge this arc again.';
 
 create index arcs_user_occurred_idx on arcs (user_id, occurred_at desc);
 create index arcs_user_open_idx     on arcs (user_id) where status = 'open';
@@ -87,6 +90,26 @@ create trigger arcs_touch_updated_at
 create trigger answers_touch_updated_at
     before update on answers
     for each row execute function set_updated_at();
+
+-- Metrics ruling (spec rev B, section 6): all consumption metrics and the
+-- resisted-vs-drank ratio read the EFFECTIVE outcome. delayed -> drank anyway
+-- counts as drank; delayed -> didn't drink counts as resisted (a win), with
+-- the delayed_first tag preserved for the delay-success metric.
+-- "Still deciding" arcs are excluded from all metrics until resolved; they
+-- live only in the open-arc queue.
+create view arcs_for_metrics as
+select *
+from arcs
+where outcome in ('drank', 'resisted');
+comment on view arcs_for_metrics is
+    'The only arc source metrics may read. outcome here is already effective (D1 resolution folds delayed into drank/resisted). delay-success rate = count(outcome = ''resisted'' and ''delayed_first'' = any(tags)) / count(''delayed_first'' = any(tags)).';
+
+create view open_arc_queue as
+select *
+from arcs
+where status = 'open';
+comment on view open_arc_queue is
+    'Unresolved arcs: still-deciding delays and live-urge captures awaiting an outcome. Invisible to metrics. The next-morning nudge reads this queue plus drank arcs missing the after moment, and skips any arc with nudged_at set.';
 
 -- Canonical answer upsert (arcs reopenable; late honesty always welcome):
 --

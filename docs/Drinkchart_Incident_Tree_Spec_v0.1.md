@@ -1,6 +1,6 @@
 # Drinkchart — Incident Tree Specification v0.1
 
-**Detailed design · Incident logging · July 2026**
+**Detailed design · Incident logging · July 2026 · rev A (D1 traceability added, social drill-down proposed)**
 **Governing rules:** deterministic tree, versioned config (data, not code), no AI at runtime. Floor ≤3 taps. Depth invited, never required. Free text available at every moment. Arcs reopenable.
 
 ---
@@ -30,6 +30,8 @@ D1 (if delayed): "And then?" → drank anyway | didn't drink | still deciding (a
 | Live urge (E1) | one tap | 1 |
 
 **Done** is visible the moment the floor is met. Everything below is invited cards — max 3 visible, "more" reveals the rest, every card skippable.
+
+*Footnote:* delayed → "drank anyway" additionally requires QTY (4 taps total for that arc); each branch's own floor stays ≤3. "Still deciding" has no floor — the arc simply remains open.
 
 ---
 
@@ -106,7 +108,7 @@ D1 (if delayed): "And then?" → drank anyway | didn't drink | still deciding (a
 
 ## 4. Branching Rules — v1
 
-Deliberately shallow. Only three conditionals exist in v1: **F1 → F2/F3** (real fight spawns depth), **B4 × O1 → broke-own-rule tag**, **D1 → branch resolution**. Depth from entry never exceeds 3. Driver drill-downs (stress → source; social → pressure vs. connection), context-conditional questions, and history-aware prompts are v2+ tree versions, added when incident data shows which branches earn their place.
+Deliberately shallow. Only three conditionals exist in v1: **F1 → F2/F3** (real fight spawns depth), **B4 × O1 → broke-own-rule tag**, **D1 → branch resolution** — plus a proposed fourth, **B1 = social → B1a** (pressure vs. connection drill-down), pending Decision 1. Depth from entry never exceeds 3. Driver drill-downs (stress → source; social → pressure vs. connection), context-conditional questions, and history-aware prompts are v2+ tree versions, added when incident data shows which branches earn their place.
 
 ## 5. Tree-as-Config Contract
 
@@ -119,6 +121,8 @@ Deliberately shallow. Only three conditionals exist in v1: **F1 → F2/F3** (rea
 
 Every node exists because something reads it. If a node feeds nothing, it gets cut.
 
+*Metrics ruling:* all consumption metrics and the resisted-vs-drank ratio read an arc's **effective outcome** (delayed → drank anyway counts as drank; delayed → didn't-drink counts as resisted, i.e., a win), with the `delayed_first` tag preserved for the delay-success metric. "Still deciding" arcs are excluded from all metrics until resolved; they live only in the open-arc queue.
+
 | Node(s) | Feeds |
 |---|---|
 | B1 | primary drivers, driver × quantity, driver → heaviest sessions, action selection |
@@ -127,6 +131,7 @@ Every node exists because something reads it. If a node feeds nothing, it gets c
 | A1 vs B1 | promise gap: expected benefit vs. delivered |
 | F2, F6 | what resistance tactics work *for this user* — personal pattern, resisted-side |
 | O1 ratio | resisted-vs-drank record (the wins) |
+| D1 | delay-success rate (delayed → didn't-drink ÷ all resolved delays); the measurement behind the craving action ("delay the first drink and track whether the urge changes"); delayed → didn't-drink counts toward the wins record; "still deciding" feeds the open-arc nudge queue |
 | QTY, T1, M1 | all consumption metrics: weekly, per-day, heavy-session, consecutive days, AF days |
 | B2, B3 | context patterns, trigger frequency |
 | A2, A5 | verdict trends; AI narration reads journal text across time for recurring self-talk |
@@ -137,7 +142,7 @@ The tree collects context per-incident, so onboarding shrinks to: age band, gend
 
 ## 8. Open Decisions (blocking v1 config)
 
-1. Driver start-set — proposed: the 8 above + other (each maps 1:1 to an existing approved action; celebration/confidence/enjoyment deferred to v2).
+1. Driver start-set — proposed: the 8 above + other. **Social pressure vs. connection resolution:** keep a single "social" chip at top level, add conditional **B1a — "Going along, or enjoying it?"** (going along with others / enjoying the company). Restores the 1:1 action mapping (pressure → "set the intended limit before arriving") without widening the top-level list; adds a fourth v1 conditional. Alternative: two top-level chips (9 + other). Celebration/confidence/enjoyment deferred to v2 either way.
 2. Quantity bands — proposed chips: 1–2 / 3–4 / 5–6 / 7–9 / 10+ / exact.
 3. Delayed as resolvable state (arc stays open on "still deciding").
 4. Onboarding drop of weight/height.

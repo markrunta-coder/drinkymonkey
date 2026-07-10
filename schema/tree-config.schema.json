@@ -44,8 +44,8 @@
       "properties": {
         "id": {
           "type": "string",
-          "pattern": "^[A-Z][A-Z0-9]{0,7}$",
-          "description": "Stable forever. Never reuse or repurpose an id across tree versions."
+          "pattern": "^[A-Z][A-Za-z0-9]{0,7}$",
+          "description": "Stable forever. Never reuse or repurpose an id across tree versions. Lowercase suffix marks a drill-down of its parent (B1a drills into B1)."
         },
         "moment": {
           "type": "string",
@@ -193,7 +193,8 @@
         },
         "add_tag": {
           "type": "string",
-          "pattern": "^[a-z0-9-]+$"
+          "pattern": "^[a-z0-9][a-z0-9_-]*$",
+          "description": "Tag names are spec-canonical (broke-own-rule, delayed_first) — match the spec's spelling exactly."
         }
       }
     }
