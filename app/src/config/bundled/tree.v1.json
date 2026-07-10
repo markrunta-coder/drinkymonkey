@@ -1,0 +1,423 @@
+{
+  "tree_version": 1,
+  "notes": "Seed tree implementing Drinkchart_Incident_Tree_Spec_v0.1 rev B. Four v1 conditionals: F1->F2/F3, B4xO1 broke-own-rule tag, D1 branch resolution, B1=social->B1a. Further drill-downs, context-conditional questions, and history-aware prompts are v2+ versions.",
+  "nodes": [
+    {
+      "id": "E1",
+      "moment": "entry",
+      "prompt": "Urge right now",
+      "input_type": "tap",
+      "notes": "Live entry: opens an arc, timestamps it, offers the entry_chips, then the app backs off. Outcome is logged later via O1 on the same arc."
+    },
+    {
+      "id": "E2",
+      "moment": "entry",
+      "prompt": "Log something",
+      "input_type": "tap",
+      "spawn_rules": [{ "if_value": "*", "then_node": "O1" }]
+    },
+    {
+      "id": "O1",
+      "moment": "outcome",
+      "prompt": "What happened?",
+      "input_type": "single",
+      "required": true,
+      "options": [
+        { "value": "drank", "label": "Drank" },
+        { "value": "resisted", "label": "Resisted" },
+        { "value": "delayed", "label": "Delayed" }
+      ],
+      "spawn_rules": [{ "if_value": "delayed", "then_node": "D1" }]
+    },
+    {
+      "id": "D1",
+      "moment": "outcome",
+      "prompt": "And then?",
+      "input_type": "single",
+      "required": true,
+      "options": [
+        { "value": "drank_anyway", "label": "Drank anyway" },
+        { "value": "didnt_drink", "label": "Didn't drink" },
+        { "value": "still_deciding", "label": "Still deciding" }
+      ],
+      "spawn_rules": [
+        { "if_value": "drank_anyway", "then_branch": "drank" },
+        { "if_value": "didnt_drink", "then_branch": "resisted" },
+        { "if_value": "still_deciding", "then_action": "keep_open" }
+      ]
+    },
+    {
+      "id": "T1",
+      "moment": "outcome",
+      "prompt": "When?",
+      "input_type": "single",
+      "required": true,
+      "options": [
+        { "value": "just_now", "label": "Just now" },
+        { "value": "earlier_today", "label": "Earlier today" },
+        { "value": "last_night", "label": "Last night" },
+        { "value": "yesterday", "label": "Yesterday" },
+        { "value": "custom", "label": "Pick date & time", "requires_datetime": true }
+      ]
+    },
+    {
+      "id": "QTY",
+      "moment": "metrics",
+      "prompt": "How much, roughly?",
+      "input_type": "chips",
+      "required": true,
+      "options": [
+        { "value": "1_2", "label": "1–2" },
+        { "value": "3_4", "label": "3–4" },
+        { "value": "5_6", "label": "5–6" },
+        { "value": "7_9", "label": "7–9" },
+        { "value": "10_plus", "label": "10+" },
+        { "value": "exact", "label": "Exact #", "requires_number": true }
+      ]
+    },
+    {
+      "id": "B1",
+      "moment": "before",
+      "prompt": "What was behind it?",
+      "input_type": "single",
+      "allow_secondary": true,
+      "options": [
+        { "value": "stress", "label": "Stress" },
+        { "value": "habit_routine", "label": "Habit / routine" },
+        { "value": "social", "label": "Social" },
+        { "value": "boredom", "label": "Boredom" },
+        { "value": "sleep", "label": "Sleep" },
+        { "value": "reward", "label": "Reward" },
+        { "value": "craving", "label": "Craving" },
+        { "value": "escape", "label": "Escape" },
+        { "value": "other", "label": "Other", "requires_text": true }
+      ],
+      "spawn_rules": [{ "if_value": "social", "then_node": "B1a" }],
+      "notes": "Primary driver + optional one secondary. Social drills down via B1a (Decision 1, Brief 002); other driver drill-downs (e.g. stress -> source) are v2 tree expansions."
+    },
+    {
+      "id": "B1a",
+      "moment": "before",
+      "prompt": "Going along, or enjoying it?",
+      "input_type": "single",
+      "options": [
+        { "value": "going_along", "label": "Going along with others" },
+        { "value": "enjoying_company", "label": "Enjoying the company" }
+      ],
+      "notes": "Social drill-down: pressure vs connection. Restores the 1:1 driver->action mapping (going_along -> set the intended limit before arriving) without widening the top-level driver list."
+    },
+    {
+      "id": "B2",
+      "moment": "before",
+      "prompt": "How were you feeling?",
+      "input_type": "multi",
+      "max_select": 3,
+      "options": [
+        { "value": "stressed", "label": "Stressed" },
+        { "value": "anxious", "label": "Anxious" },
+        { "value": "bored", "label": "Bored" },
+        { "value": "lonely", "label": "Lonely" },
+        { "value": "tired", "label": "Tired" },
+        { "value": "flat", "label": "Flat" },
+        { "value": "angry", "label": "Angry" },
+        { "value": "happy", "label": "Happy" },
+        { "value": "restless", "label": "Restless" },
+        { "value": "numb", "label": "Numb" }
+      ]
+    },
+    {
+      "id": "B3A",
+      "moment": "before",
+      "prompt": "Where were you?",
+      "input_type": "single",
+      "card_group": "B3",
+      "options": [
+        { "value": "home", "label": "Home" },
+        { "value": "bar", "label": "Bar" },
+        { "value": "restaurant", "label": "Restaurant" },
+        { "value": "someones_place", "label": "Someone's place" },
+        { "value": "event", "label": "Event" },
+        { "value": "out", "label": "Out" }
+      ]
+    },
+    {
+      "id": "B3B",
+      "moment": "before",
+      "prompt": "Who were you with?",
+      "input_type": "single",
+      "card_group": "B3",
+      "options": [
+        { "value": "alone", "label": "Alone" },
+        { "value": "partner", "label": "Partner" },
+        { "value": "friends", "label": "Friends" },
+        { "value": "family", "label": "Family" },
+        { "value": "colleagues", "label": "Colleagues" }
+      ]
+    },
+    {
+      "id": "B4",
+      "moment": "before",
+      "prompt": "Had you told yourself anything about drinking today?",
+      "input_type": "single",
+      "options": [
+        { "value": "wasnt_going_to", "label": "Wasn't going to drink" },
+        { "value": "had_a_limit", "label": "Had a limit" },
+        { "value": "no_plan", "label": "No plan" },
+        { "value": "planned_to", "label": "Planned to drink" }
+      ],
+      "notes": "Combined with outcome=drank this feeds the broke_own_rule tag (see tag_rules)."
+    },
+    {
+      "id": "F1",
+      "moment": "fight",
+      "prompt": "Was there a moment of deciding?",
+      "input_type": "single",
+      "options": [
+        { "value": "automatic", "label": "Automatic" },
+        { "value": "brief_hesitation", "label": "Brief hesitation" },
+        { "value": "real_fight", "label": "A real fight" }
+      ],
+      "spawn_rules": [
+        { "if_value": "real_fight", "then_node": "F2" },
+        { "if_value": "real_fight", "then_node": "F3" }
+      ]
+    },
+    {
+      "id": "F2",
+      "moment": "fight",
+      "prompt": "How long did you hold out?",
+      "input_type": "single",
+      "options": [
+        { "value": "minutes", "label": "Minutes" },
+        { "value": "about_an_hour", "label": "About an hour" },
+        { "value": "hours", "label": "Hours" },
+        { "value": "most_of_day", "label": "Most of the day" }
+      ],
+      "notes": "Shared node: spawned by F1 on the drank path, a standard card on the resisted path."
+    },
+    {
+      "id": "F3",
+      "moment": "fight",
+      "prompt": "What tipped it?",
+      "input_type": "single",
+      "allow_free_text": true,
+      "options": [
+        { "value": "urge_got_stronger", "label": "The urge got stronger" },
+        { "value": "someone_offered", "label": "Someone offered" },
+        { "value": "just_one", "label": "“Just one”" },
+        { "value": "screw_it", "label": "“Screw it”" },
+        { "value": "deserved_it", "label": "I deserved it" },
+        { "value": "autopilot", "label": "Autopilot" },
+        { "value": "other", "label": "Other", "requires_text": true }
+      ]
+    },
+    {
+      "id": "F4",
+      "moment": "fight",
+      "prompt": "Sound familiar?",
+      "input_type": "multi",
+      "allow_free_text": true,
+      "options": [
+        { "value": "just_one", "label": "“Just one”" },
+        { "value": "i_deserve_it", "label": "“I deserve it”" },
+        { "value": "hard_day", "label": "“It's been a hard day”" },
+        { "value": "start_tomorrow", "label": "“I'll start tomorrow”" },
+        { "value": "everyone_is", "label": "“Everyone is”" },
+        { "value": "i_can_handle_it", "label": "“I can handle it”" }
+      ],
+      "notes": "Self-talk. AI narration reads recurring self-talk offline, across time — never at runtime."
+    },
+    {
+      "id": "F5",
+      "moment": "fight",
+      "prompt": "The fight felt like…",
+      "input_type": "multi",
+      "max_select": 2,
+      "options": [
+        { "value": "at_war_with_myself", "label": "At war with myself" },
+        { "value": "trapped", "label": "Trapped" },
+        { "value": "in_control", "label": "In control" },
+        { "value": "resigned", "label": "Resigned" },
+        { "value": "didnt_care", "label": "Didn't care" },
+        { "value": "stuck_again", "label": "Stuck again" }
+      ],
+      "notes": "Turmoil tags. Re-asked in the after moment as A4; both feed the 30/90-day entrapment trend."
+    },
+    {
+      "id": "F6",
+      "moment": "fight",
+      "prompt": "What got you through?",
+      "input_type": "multi",
+      "allow_free_text": true,
+      "options": [
+        { "value": "did_something_else", "label": "Did something else" },
+        { "value": "waited_it_out", "label": "Waited it out" },
+        { "value": "remembered_why", "label": "Remembered why" },
+        { "value": "left_the_situation", "label": "Left the situation" },
+        { "value": "talked_to_someone", "label": "Talked to someone" },
+        { "value": "ate_or_drank_something_else", "label": "Ate or drank something else" }
+      ],
+      "notes": "Resisted path only. Feeds the personal what-works pattern."
+    },
+    {
+      "id": "A1",
+      "moment": "after",
+      "prompt": "Did it do what you wanted?",
+      "input_type": "single",
+      "options": [
+        { "value": "yes", "label": "Yes" },
+        { "value": "partly", "label": "Partly" },
+        { "value": "no", "label": "No" },
+        { "value": "made_it_worse", "label": "Made it worse" }
+      ],
+      "notes": "Against B1 this feeds the promise gap: expected benefit vs delivered."
+    },
+    {
+      "id": "A2",
+      "moment": "after",
+      "prompt": "This morning's verdict",
+      "input_type": "single",
+      "allow_free_text": true,
+      "options": [
+        { "value": "relief", "label": "Relief" },
+        { "value": "fine_with_it", "label": "Fine with it" },
+        { "value": "mixed", "label": "Mixed" },
+        { "value": "regret", "label": "Regret" },
+        { "value": "numb", "label": "Numb" },
+        { "value": "again", "label": "“Again”" }
+      ],
+      "notes": "After moment is prompted next morning if absent; available immediately."
+    },
+    {
+      "id": "A3",
+      "moment": "after",
+      "prompt": "Body check",
+      "input_type": "single",
+      "options": [
+        { "value": "fine", "label": "Fine" },
+        { "value": "meh", "label": "Meh" },
+        { "value": "rough", "label": "Rough" }
+      ],
+      "notes": "Keys the embedded mind/body content together with QTY. Context, not headline."
+    },
+    {
+      "id": "A4",
+      "moment": "after",
+      "prompt": "Looking back, the fight felt like…",
+      "input_type": "multi",
+      "max_select": 2,
+      "options": [
+        { "value": "at_war_with_myself", "label": "At war with myself" },
+        { "value": "trapped", "label": "Trapped" },
+        { "value": "in_control", "label": "In control" },
+        { "value": "resigned", "label": "Resigned" },
+        { "value": "didnt_care", "label": "Didn't care" },
+        { "value": "stuck_again", "label": "Stuck again" }
+      ],
+      "notes": "The turmoil node F5's option set, re-asked in the after moment. Distinct id so both answers persist on one arc."
+    },
+    {
+      "id": "A5",
+      "moment": "after",
+      "prompt": "Anything else?",
+      "input_type": "text",
+      "notes": "Journal. Free text is additionally available at every moment as a render-level affordance; A5 is the dedicated card."
+    },
+    {
+      "id": "A6",
+      "moment": "after",
+      "prompt": "How do you feel about it now?",
+      "input_type": "single",
+      "options": [
+        { "value": "proud", "label": "Proud" },
+        { "value": "relieved", "label": "Relieved" },
+        { "value": "still_fighting_it", "label": "Still fighting it" },
+        { "value": "exhausted", "label": "Exhausted" },
+        { "value": "no_big_deal", "label": "No big deal" }
+      ]
+    },
+    {
+      "id": "M1",
+      "moment": "metrics",
+      "prompt": "Over how long?",
+      "input_type": "single",
+      "options": [
+        { "value": "under_1h", "label": "Under an hour" },
+        { "value": "1_2h", "label": "1–2 hours" },
+        { "value": "2_4h", "label": "2–4 hours" },
+        { "value": "all_evening", "label": "All evening" }
+      ]
+    },
+    {
+      "id": "M2",
+      "moment": "metrics",
+      "prompt": "Food?",
+      "input_type": "single",
+      "options": [
+        { "value": "none", "label": "None" },
+        { "value": "some", "label": "Some" },
+        { "value": "a_meal", "label": "A meal" }
+      ]
+    },
+    {
+      "id": "M3",
+      "moment": "metrics",
+      "prompt": "What kind?",
+      "input_type": "multi",
+      "options": [
+        { "value": "wine", "label": "Wine" },
+        { "value": "beer", "label": "Beer" },
+        { "value": "spirits", "label": "Spirits" },
+        { "value": "mixed", "label": "Mixed" }
+      ],
+      "notes": "Deprioritized by design; beverage type is context, not signal."
+    }
+  ],
+  "branches": {
+    "live": {
+      "floor": ["E1"],
+      "entry_chips": ["B2", "B3A", "B3B"]
+    },
+    "drank": {
+      "floor": ["O1", "T1", "QTY"],
+      "cards": {
+        "before": ["B1", "B2", "B3A", "B3B", "B4"],
+        "fight": ["F1", "F4", "F5"],
+        "after": ["A1", "A2", "A3", "A4", "A5"],
+        "metrics": ["M1", "M2", "M3"]
+      }
+    },
+    "resisted": {
+      "floor": ["O1", "T1"],
+      "cards": {
+        "before": ["B1", "B2", "B3A", "B3B", "B4"],
+        "fight": ["F2", "F6", "F5"],
+        "after": ["A6", "A5"]
+      }
+    },
+    "delayed": {
+      "floor": ["O1", "T1", "D1"],
+      "cards": {
+        "before": ["B1", "B2", "B3A", "B3B", "B4"]
+      }
+    }
+  },
+  "tag_rules": [
+    {
+      "node": "B4",
+      "if_value_in": ["wasnt_going_to", "had_a_limit"],
+      "if_outcome": "drank",
+      "add_tag": "broke_own_rule"
+    },
+    {
+      "node": "O1",
+      "if_value_in": ["delayed"],
+      "add_tag": "delayed_first"
+    },
+    {
+      "node": "E1",
+      "if_value_in": ["tapped"],
+      "add_tag": "live_capture"
+    }
+  ]
+}
