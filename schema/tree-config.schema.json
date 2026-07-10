@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://drinkchart.app/schemas/tree-config.schema.json",
+  "title": "Drinkchart Incident Tree Config",
+  "description": "A versioned, deterministic question tree for incident logging. The app renders any valid config generically; shipping a new tree version is a config push, never an app release. tools/lint-tree.mjs enforces the semantic rules this schema cannot express (spawn-target existence, no cycles, depth <= 3, floor <= 3 per branch, reachability).",
+  "type": "object",
+  "required": ["tree_version", "nodes", "branches"],
+  "additionalProperties": false,
+  "properties": {
+    "tree_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Monotonically increasing. Answers persist with the version they were captured under."
+    },
+    "notes": { "type": "string" },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "branches": {
+      "type": "object",
+      "description": "One entry per outcome branch plus the live-urge entry mode. floor = the required minimum path; everything else is invited cards (renderer shows max 3, 'more' reveals the rest, every card skippable).",
+      "required": ["live", "drank", "resisted", "delayed"],
+      "additionalProperties": false,
+      "properties": {
+        "live": { "$ref": "#/$defs/branch" },
+        "drank": { "$ref": "#/$defs/branch" },
+        "resisted": { "$ref": "#/$defs/branch" },
+        "delayed": { "$ref": "#/$defs/branch" }
+      }
+    },
+    "tag_rules": {
+      "type": "array",
+      "description": "Deterministic cross-node tagging (e.g. B4 x O1 -> broke-own-rule). Evaluated in code when the referenced answer or the arc outcome changes; resulting tags persist on the arc.",
+      "items": { "$ref": "#/$defs/tag_rule" }
+    }
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "required": ["id", "moment", "prompt", "input_type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9]{0,7}$",
+          "description": "Stable forever. Never reuse or repurpose an id across tree versions."
+        },
+        "moment": {
+          "type": "string",
+          "enum": ["entry", "outcome", "before", "fight", "after", "metrics"]
+        },
+        "prompt": { "type": "string", "minLength": 1 },
+        "input_type": {
+          "type": "string",
+          "enum": ["tap", "single", "multi", "chips", "number", "text"],
+          "description": "'tap' extends the spec's implicit entry type (E1/E2). 'chips' renders like single but styled as quick bands."
+        },
+        "options": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "$ref": "#/$defs/option" },
+          "description": "Required for single/multi/chips; forbidden for tap/number/text (lint enforces)."
+        },
+        "max_select": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "multi only. Omitted = no cap."
+        },
+        "required": {
+          "type": "boolean",
+          "default": false,
+          "description": "Only floor nodes may be required (lint enforces): depth is invited, never required."
+        },
+        "allow_secondary": {
+          "type": "boolean",
+          "description": "single only. Lets the user add one optional secondary choice (B1: primary driver + optional secondary)."
+        },
+        "allow_free_text": {
+          "type": "boolean",
+          "description": "Adds an optional free-text companion field (the spec's 'single+text' / 'multi+text')."
+        },
+        "card_group": {
+          "type": "string",
+          "description": "Nodes sharing a card_group render on one card (B3A place + B3B company = the spec's B3 'two singles')."
+        },
+        "spawn_rules": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/spawn_rule" }
+        },
+        "notes": {
+          "type": "string",
+          "description": "Authoring commentary. Never rendered."
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "input_type": { "enum": ["single", "multi", "chips"] } } },
+          "then": { "required": ["options"] }
+        },
+        {
+          "if": { "properties": { "input_type": { "enum": ["tap", "number", "text"] } } },
+          "then": { "not": { "required": ["options"] } }
+        }
+      ]
+    },
+    "option": {
+      "type": "object",
+      "required": ["value", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+$",
+          "description": "Stable forever; what persists in answers.value. Never repurpose."
+        },
+        "label": { "type": "string", "minLength": 1 },
+        "requires_text": {
+          "type": "boolean",
+          "description": "Selecting this option opens a text field (e.g. 'other')."
+        },
+        "requires_number": {
+          "type": "boolean",
+          "description": "Selecting this option opens numeric entry (QTY 'exact')."
+        },
+        "requires_datetime": {
+          "type": "boolean",
+          "description": "Selecting this option opens a date-time picker (T1 'pick date & time')."
+        }
+      }
+    },
+    "spawn_rule": {
+      "type": "object",
+      "required": ["if_value"],
+      "additionalProperties": false,
+      "description": "Exactly one of then_node | then_branch | then_action (lint enforces). then_branch redirects the arc into another branch's floor + cards (D1 resolution); then_action 'keep_open' leaves the arc open with no further nodes.",
+      "properties": {
+        "if_value": {
+          "type": "string",
+          "description": "An option value of this node, or '*' for any answer."
+        },
+        "then_node": { "type": "string" },
+        "then_branch": { "type": "string", "enum": ["live", "drank", "resisted", "delayed"] },
+        "then_action": { "type": "string", "enum": ["keep_open"] }
+      }
+    },
+    "branch": {
+      "type": "object",
+      "required": ["floor"],
+      "additionalProperties": false,
+      "properties": {
+        "floor": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": { "type": "string" },
+          "description": "Ordered required minimum. 'Done' is visible the moment the floor is met."
+        },
+        "cards": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Invited, skippable cards per moment, in display order.",
+          "properties": {
+            "before": { "type": "array", "items": { "type": "string" } },
+            "fight": { "type": "array", "items": { "type": "string" } },
+            "after": { "type": "array", "items": { "type": "string" } },
+            "metrics": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "entry_chips": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Quick chips offered immediately on entry (live urge: B2, B3A, B3B), then the app backs off."
+        }
+      }
+    },
+    "tag_rule": {
+      "type": "object",
+      "required": ["node", "if_value_in", "add_tag"],
+      "additionalProperties": false,
+      "properties": {
+        "node": { "type": "string" },
+        "if_value_in": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "if_outcome": {
+          "type": "string",
+          "enum": ["drank", "resisted", "delayed"],
+          "description": "Optional additional condition on the arc's effective outcome."
+        },
+        "add_tag": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$"
+        }
+      }
+    }
+  }
+}
