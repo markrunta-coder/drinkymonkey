@@ -15,6 +15,18 @@ No app code, no AI at runtime.
 | `tools/preview.html` | Click-testable preview of any config — renders the canonical JSON generically |
 | `tools/smoke-preview.mjs` | Headless test: capture floors, spawns, tags, onboarding flow, scoring |
 
+## Deployment
+
+The schema is applied to the shared **momentum_engine** Supabase project
+(`uofnnmixmjqhoumbbcfe`), with every Drinkchart table carrying the **`dc_`
+prefix** (migration `drinkchart_init`). `dc_tree_versions` and
+`dc_onboarding_versions` hold the published v1 configs. RLS is enabled on all
+`dc_` tables: users own their rows via `auth.uid()`; configs are read-only to
+clients. ⚠ The tech-stack doc rules "separate Supabase project, no
+co-tenancy" — the current placement follows an explicit directive and should
+be revisited before launch (the app's anon key exposes every RLS-off table in
+the shared project).
+
 ## Preview harness
 
 `tools/preview.html` renders the real `config/tree.v1.json` — one canonical
