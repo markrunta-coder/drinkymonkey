@@ -2,14 +2,7 @@
 // ported 1:1 from the reference harness (tools/preview.html, guarded by
 // tools/smoke-preview.mjs). Everything here is a pure function of
 // (config, answers): no React, no I/O, no state, fully deterministic.
-import type {
-  AnswerValue,
-  Answers,
-  ConfigNode,
-  ConfigOption,
-  FlowConfig,
-  Outcome,
-} from "./types";
+import type { AnswerValue, Answers, ConfigNode, ConfigOption, FlowConfig, Outcome } from "./types";
 
 export const isLinear = (config: FlowConfig): boolean => config.flow === "linear";
 
@@ -51,10 +44,7 @@ export function requiredIds(config: FlowConfig, answers: Answers): string[] {
   return ids;
 }
 
-export function selectedOption(
-  node: ConfigNode,
-  a: AnswerValue
-): ConfigOption | undefined {
+export function selectedOption(node: ConfigNode, a: AnswerValue): ConfigOption | undefined {
   return (node.options ?? []).find((o) => o.value === a.value);
 }
 

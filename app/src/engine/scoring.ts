@@ -10,7 +10,9 @@ import type { Answers, FlowConfig, InstrumentBands } from "./types";
 export function auditC(q1: number, q2: number, q3: number): number {
   for (const [i, q] of [q1, q2, q3].entries()) {
     if (!Number.isInteger(q) || q < 0 || q > 4) {
-      throw new RangeError(`AUDIT-C item ${i + 1} must be an integer 0-4, got ${JSON.stringify(q)}`);
+      throw new RangeError(
+        `AUDIT-C item ${i + 1} must be an integer 0-4, got ${JSON.stringify(q)}`
+      );
     }
   }
   return q1 + q2 + q3;

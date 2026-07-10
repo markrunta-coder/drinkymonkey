@@ -146,6 +146,12 @@ export async function fetchLastCompleteArc(userId: string): Promise<ArcRow | nul
   return (data as ArcRow) ?? null;
 }
 
+export async function fetchArc(arcId: string): Promise<ArcRow | null> {
+  const { data, error } = await supabase.from("dc_arcs").select("*").eq("id", arcId).maybeSingle();
+  if (error) throw error;
+  return (data as ArcRow) ?? null;
+}
+
 export async function fetchAnswers(arcId: string): Promise<AnswerRow[]> {
   const { data, error } = await supabase.from("dc_answers").select("*").eq("arc_id", arcId);
   if (error) throw error;

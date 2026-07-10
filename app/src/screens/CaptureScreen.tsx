@@ -31,7 +31,7 @@ import {
 } from "../engine/session";
 import type { Answers, SessionState } from "../engine/types";
 import { arcRowFromSession, syncSession } from "../lib/arcSync";
-import { fetchAnswers } from "../lib/db";
+import { fetchAnswers, fetchArc } from "../lib/db";
 import { clearDraft, loadDraft, saveDraft } from "../lib/draft";
 import { arcNeedsNudge, cancelNudge, scheduleNudgeIfNeeded } from "../lib/nudge";
 import { flush } from "../lib/queue";
@@ -48,6 +48,8 @@ export default function CaptureScreen({ route, navigation }: Props) {
   const [arcId, setArcId] = useState<string | null>(null);
   const [session, setSession] = useState<SessionState | null>(null);
   const prevAnswersRef = useRef<Answers>({});
+  // one nudge per arc EVER: reopened arcs carry their nudged_at through
+  const nudgedAtRef = useRef<string | null>(null);
 
   // ---------------------------------------------------------------- mount
   useEffect(() => {
@@ -58,6 +60,7 @@ export default function CaptureScreen({ route, navigation }: Props) {
         const draft = await loadDraft();
         if (!cancelled && draft) {
           prevAnswersRef.current = draft.session.arc.answers;
+          nudgedAtRef.current = draft.nudgedAt ?? null;
           setArcId(draft.arcId);
           setSession(draft.session);
           return;
@@ -68,8 +71,12 @@ export default function CaptureScreen({ route, navigation }: Props) {
       if ("reopenArcId" in params) {
         // Reopening = the same arc, answers upsert anytime (spec: arcs reopenable).
         try {
-          const rows = await fetchAnswers(params.reopenArcId);
+          const [rows, arcRow] = await Promise.all([
+            fetchAnswers(params.reopenArcId),
+            fetchArc(params.reopenArcId),
+          ]);
           if (cancelled) return;
+          nudgedAtRef.current = arcRow?.nudged_at ?? null;
           const answers: Answers = {};
           for (const r of rows) answers[r.node_id] = r.value;
           let s = blankSession(tree);
@@ -112,7 +119,11 @@ export default function CaptureScreen({ route, navigation }: Props) {
           prevAnswersRef.current = s.arc.answers;
         });
         if (params.start === "live") {
-          void scheduleNudgeIfNeeded(tree, arcRowFromSession(id, userId, s), s.arc.answers);
+          void scheduleNudgeIfNeeded(tree, arcRowFromSession(id, userId, s), s.arc.answers).then(
+            (nudgedAt) => {
+              if (nudgedAt) nudgedAtRef.current = nudgedAt;
+            }
+          );
         }
       }
       void saveDraft({ arcId: id, session: s, updatedAt: new Date().toISOString() });
@@ -129,7 +140,12 @@ export default function CaptureScreen({ route, navigation }: Props) {
       setSession(next);
       if (!arcId) return;
       // write-through: draft survives app kill; queue syncs when network allows
-      void saveDraft({ arcId, session: next, updatedAt: new Date().toISOString() });
+      void saveDraft({
+        arcId,
+        session: next,
+        updatedAt: new Date().toISOString(),
+        nudgedAt: nudgedAtRef.current,
+      });
       if (userId) {
         const prev = prevAnswersRef.current;
         prevAnswersRef.current = next.arc.answers;
@@ -154,11 +170,15 @@ export default function CaptureScreen({ route, navigation }: Props) {
   const finish = useCallback(async () => {
     if (!session || !arcId) return;
     if (userId) {
-      const arcRow = arcRowFromSession(arcId, userId, session);
+      const arcRow = {
+        ...arcRowFromSession(arcId, userId, session),
+        nudged_at: nudgedAtRef.current,
+      };
       if (arcNeedsNudge(tree, arcRow, session.arc.answers)) {
         // open arc, or drank arc missing its after moment: schedule the single
         // morning nudge (scheduleNudgeIfNeeded honors nudged_at — one EVER)
-        await scheduleNudgeIfNeeded(tree, arcRow, session.arc.answers);
+        const nudgedAt = await scheduleNudgeIfNeeded(tree, arcRow, session.arc.answers);
+        if (nudgedAt) nudgedAtRef.current = nudgedAt;
       } else {
         // resolved: stop a pending delivery; nudged_at stays set forever
         await cancelNudge(arcId);
@@ -188,8 +208,7 @@ export default function CaptureScreen({ route, navigation }: Props) {
       <ScrollView style={st.screen} contentContainerStyle={st.content}>
         <Text style={st.eyebrow}>Logged · {session.arc.urge_at ?? ""}</Text>
         <Text style={st.quiet}>
-          Got it. That&apos;s enough — this counts. Add a detail if you want, or just close the
-          app.
+          Got it. That&apos;s enough — this counts. Add a detail if you want, or just close the app.
         </Text>
         <MomentBlock
           momentKey="before"
@@ -295,7 +314,12 @@ export default function CaptureScreen({ route, navigation }: Props) {
 const st = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   content: { padding: 18, paddingBottom: 40 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.paper },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.paper,
+  },
   eyebrow: {
     fontSize: 10.5,
     letterSpacing: 1.5,
@@ -304,7 +328,13 @@ const st = StyleSheet.create({
     marginTop: 8,
   },
   quiet: { color: colors.sub, fontSize: 13, lineHeight: 19, marginVertical: 12 },
-  voice: { fontSize: 18, fontWeight: "500", color: colors.text, marginTop: 18, textAlign: "center" },
+  voice: {
+    fontSize: 18,
+    fontWeight: "500",
+    color: colors.text,
+    marginTop: 18,
+    textAlign: "center",
+  },
   bigBtn: {
     borderRadius: 16,
     padding: 16,

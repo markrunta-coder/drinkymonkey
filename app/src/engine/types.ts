@@ -8,15 +8,7 @@
 export type FlowKind = "incident" | "linear";
 
 export type Moment =
-  | "entry"
-  | "outcome"
-  | "before"
-  | "fight"
-  | "after"
-  | "metrics"
-  | "profile"
-  | "audit"
-  | "goal";
+  "entry" | "outcome" | "before" | "fight" | "after" | "metrics" | "profile" | "audit" | "goal";
 
 export type InputType = "tap" | "single" | "multi" | "chips" | "number" | "text";
 

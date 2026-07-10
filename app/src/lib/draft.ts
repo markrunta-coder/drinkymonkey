@@ -11,6 +11,7 @@ export interface CaptureDraft {
   arcId: string;
   session: SessionState;
   updatedAt: string;
+  nudgedAt?: string | null; // carried through so a reopened arc is never nudged twice
 }
 
 export async function saveDraft(draft: CaptureDraft): Promise<void> {

@@ -68,7 +68,9 @@ export default function HomeScreen({ navigation }: Props) {
         onPress={() => navigation.navigate("Capture", { start: "live" })}
       >
         <Text style={[st.bigBtnText, st.bigBtnTextPrimary]}>Urge right now</Text>
-        <Text style={st.bigBtnSmallPrimary}>logs the moment — we&apos;ll leave you alone after</Text>
+        <Text style={st.bigBtnSmallPrimary}>
+          logs the moment — we&apos;ll leave you alone after
+        </Text>
       </Pressable>
       <Pressable style={st.bigBtn} onPress={() => navigation.navigate("Capture", { start: "log" })}>
         <Text style={st.bigBtnText}>Log something</Text>
@@ -141,7 +143,13 @@ export default function HomeScreen({ navigation }: Props) {
 const st = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   content: { padding: 18, paddingBottom: 40 },
-  voice: { fontSize: 22, fontWeight: "500", color: colors.text, marginTop: 24, textAlign: "center" },
+  voice: {
+    fontSize: 22,
+    fontWeight: "500",
+    color: colors.text,
+    marginTop: 24,
+    textAlign: "center",
+  },
   sub: { color: colors.sub, fontSize: 13, textAlign: "center", marginTop: 6, marginBottom: 24 },
   bigBtn: {
     borderRadius: 16,

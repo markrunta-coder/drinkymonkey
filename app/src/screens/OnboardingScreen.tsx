@@ -86,13 +86,7 @@ export default function OnboardingScreen({ navigation }: Props) {
         <React.Fragment key={b.moment}>
           <Text style={st.eyebrow}>{momentTitle(b.moment, null)}</Text>
           {b.groups.map((ids) => (
-            <NodeCard
-              key={ids.join("+")}
-              ids={ids}
-              config={onboarding}
-              session={session}
-              cb={cb}
-            />
+            <NodeCard key={ids.join("+")} ids={ids} config={onboarding} session={session} cb={cb} />
           ))}
         </React.Fragment>
       ))}

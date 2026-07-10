@@ -72,7 +72,8 @@ export async function enqueue(...ops: SyncOp[]): Promise<void> {
     const key = opKey(op);
     const i = q.findIndex((e) => e.key === key);
     const entry: QueuedOp = { key, op, attempts: 0 };
-    if (i >= 0) q[i] = entry; // newer state supersedes the pending op
+    if (i >= 0)
+      q[i] = entry; // newer state supersedes the pending op
     else q.push(entry);
   }
   await writeQueue(q);

@@ -10,13 +10,7 @@ import {
   nodeById,
   rawOutcome,
 } from "./engine";
-import type {
-  AnswerValue,
-  Answers,
-  FlowConfig,
-  IncidentPreset,
-  SessionState,
-} from "./types";
+import type { AnswerValue, Answers, FlowConfig, IncidentPreset, SessionState } from "./types";
 
 /** A fresh session for the given config (linear flows preset default_value answers). */
 export function blankSession(config: FlowConfig): SessionState {
