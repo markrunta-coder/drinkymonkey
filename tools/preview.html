@@ -115,12 +115,14 @@
 <body>
 
 <header>
-  <h1>Drinkchart <span id="hdrVersion">incident tree · preview</span></h1>
+  <h1>Drinkchart <span id="hdrVersion">config preview</span></h1>
   <div class="presets">
-    <button data-preset="live">Live urge</button>
-    <button data-preset="drank">Drank</button>
-    <button data-preset="resisted">Resisted</button>
-    <button data-preset="delayed">Delayed</button>
+    <button data-config="tree">⚙ Tree v1</button>
+    <button data-config="onboarding">⚙ Onboarding v1</button>
+    <button data-preset="live" class="incident-only">Live urge</button>
+    <button data-preset="drank" class="incident-only">Drank</button>
+    <button data-preset="resisted" class="incident-only">Resisted</button>
+    <button data-preset="delayed" class="incident-only">Delayed</button>
     <button class="reset" data-preset="reset">Reset</button>
   </div>
 </header>
@@ -147,7 +149,11 @@
    Renders config/tree.v1.json (or any config passed via the file picker)
    completely generically — no per-question code. Deterministic; no AI. */
 
-const CONFIG_URL = "../config/tree.v1.json";
+const CONFIG_URLS = {
+  tree: "../config/tree.v1.json",
+  onboarding: "../config/onboarding.v1.json"
+};
+const DEFAULT_CONFIG = "tree";
 
 /* Presentation-only: spec section 6 traceability, shown on the saved screen.
    Not part of the config — the tree does not know what reads it. */
@@ -175,9 +181,18 @@ const MOMENT_TITLES = {
   before:  () => "Before — what was true",
   fight:   () => "The fight",
   after:   (eff) => eff === "drank" ? "After — the verdict (now or tomorrow)" : "After",
-  metrics: () => "Details — if useful"
+  metrics: () => "Details — if useful",
+  profile: () => "About you",
+  audit:   () => "The standard three questions (AUDIT-C)",
+  goal:    () => "Your goal"
 };
 const CARD_CAP = 3;
+
+/* Presentation-only: how onboarding nodes land in dc_profiles / dc_goals. */
+const PROFILE_MAP = {
+  AGE: "age_band", GEN: "gender", DWK: "drinks_week_band",
+  SINCE: "drinking_since", GOAL: "goal_type"
+};
 
 let TREE = null;      // loaded config
 let NODES = {};       // id -> node
@@ -185,8 +200,10 @@ let SOURCE = "";      // where the config came from
 let S = null;         // session state
 
 /* ================= state ================= */
+const isLinear = () => !!TREE && TREE.flow === "linear";
+
 function blank() {
-  return {
+  const s = {
     mode: null, liveOpen: false, saved: false,
     skipped: {}, moreShown: {},
     arc: {
@@ -198,8 +215,16 @@ function blank() {
       journal: {}    // per-moment free text (render-level affordance)
     }
   };
+  if (isLinear()) {
+    s.mode = "flow"; // linear flows have no entry hero
+    delete s.arc.entry; delete s.arc.urge_at; delete s.arc.outcome; delete s.arc.tags;
+    for (const n of TREE.nodes) {
+      if (n.default_value !== undefined) s.arc.answers[n.id] = { value: n.default_value };
+    }
+  }
+  return s;
 }
-function reset() { S = blank(); render(); }
+function reset() { S = blank(); syncArc(); render(); }
 
 /* ================= derivations ================= */
 const node = (id) => NODES[id];
@@ -220,6 +245,7 @@ const stillDeciding = () => rawOutcome() === "delayed" && resolution() === "stil
    target branch's floor nodes not already covered (delayed→drank adds QTY:
    4 taps total for that arc; each branch's own floor stays ≤3. Spec rev B footnote). */
 function requiredIds() {
+  if (isLinear()) return [...TREE.branches.main.floor];
   const o = rawOutcome();
   if (!o) return ["O1"];
   const ids = [...TREE.branches[o].floor];
@@ -252,7 +278,46 @@ function answeredComplete(id) {
   }
 }
 function floorMet() {
+  if (isLinear()) return requiredIds().every(answeredComplete);
   return !!rawOutcome() && !stillDeciding() && requiredIds().every(answeredComplete);
+}
+
+/* Generic instrument scoring — mirrors tools/scoring.mjs, reading the
+   config's scoring section (thresholds are config values, not code). */
+function scoreInstruments() {
+  const out = {};
+  const genderNode = Object.keys(PROFILE_MAP).find((id) => PROFILE_MAP[id] === "gender");
+  const gender = genderNode && ans(genderNode) ? ans(genderNode).value : null;
+  for (const [name, inst] of Object.entries(TREE.scoring || {})) {
+    if (!inst.sum_of.every((id) => answeredComplete(id))) continue;
+    let score = 0;
+    for (const id of inst.sum_of) {
+      const opt = selectedOption(node(id), ans(id));
+      score += opt && opt.score !== undefined ? opt.score : 0;
+    }
+    let best = null;
+    for (const [band, mins] of Object.entries(inst.bands)) {
+      const min = gender != null && Number.isInteger(mins[gender]) ? mins[gender] : mins.default;
+      if (score >= min && (best === null || min > best.min)) best = { band, min };
+    }
+    out[name + "_score"] = score;
+    out[name + "_band"] = (best ? best.band : "none") + (inst.provisional ? " (provisional)" : "");
+  }
+  return out;
+}
+
+/* The dc_profiles/dc_goals row this flow would persist. Presentation-only. */
+function derivedProfile() {
+  const p = {};
+  for (const [id, col] of Object.entries(PROFILE_MAP)) {
+    if (node(id)) p[col] = ans(id) ? ans(id).value : null;
+  }
+  const scores = scoreInstruments();
+  if (scores.audit_c_score !== undefined) {
+    p.audit_c_score = scores.audit_c_score;
+    p.screen_band = scores.audit_c_band;
+  }
+  return p;
 }
 
 /* Deterministic tags, straight from the config's tag_rules. */
@@ -271,6 +336,11 @@ function applyTags() {
   S.arc.tags = tags;
 }
 function syncArc() {
+  if (isLinear()) {
+    S.arc.status = floorMet() ? "complete" : "open";
+    S.arc.derived = derivedProfile();
+    return;
+  }
   applyTags();
   S.arc.outcome = effOutcome() || rawOutcome(); // delayed until D1 resolves — DB semantics
   S.arc.status = floorMet() ? "complete" : "open";
@@ -322,8 +392,8 @@ function skipNodes(ids) {
 function stamp() { return new Date().toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" }); }
 function preset(p) {
   if (!TREE) return;
+  if (p === "reset" || isLinear()) { reset(); return; }
   S = blank();
-  if (p === "reset") { render(); return; }
   if (p === "live") {
     S.mode = "live";
     S.arc.entry = "urge_now";
@@ -352,9 +422,10 @@ function renderFloor() {
   const done = req.filter(answeredComplete).length;
   const met = floorMet();
   el.className = "floor" + (met ? " met" : "");
+  const preset = isLinear() ? req.filter((id) => node(id) && node(id).default_value !== undefined).length : 0;
   const lbl = stillDeciding() ? "still deciding — the arc stays open"
-    : met ? `Floor reached · ${req.length} taps ✓`
-    : `${done}/${req.length} required taps — everything else is optional`;
+    : met ? (isLinear() ? `Ready · ${req.length - preset} taps${preset ? " (goal preselected)" : ""} ✓` : `Floor reached · ${req.length} taps ✓`)
+    : `${done}/${req.length} required — everything else is optional`;
   el.innerHTML = `<div class="segs">${req.map((_, i) => `<div class="seg ${i < done ? "on" : ""}"></div>`).join("")}</div>
                   <div class="lbl">${lbl}</div>`;
 }
@@ -461,10 +532,10 @@ function renderScreen() {
   /* -------- config not loaded -------- */
   if (!TREE) {
     el.innerHTML = `<div class="loader">
-      <div class="voice">Load a tree config</div>
-      <p>Fetching <code>${CONFIG_URL}</code> failed — browsers block fetch on file:// pages.
+      <div class="voice">Load a config</div>
+      <p>Fetching from <code>../config/</code> failed — browsers block fetch on file:// pages.
       Serve the repo root (e.g. <code>python -m http.server</code>) and open
-      <code>/tools/preview.html</code>, or pick the config by hand:</p>
+      <code>/tools/preview.html</code>, or pick a config by hand:</p>
       <input type="file" accept=".json" id="filePick">
     </div>`;
     const fp = $("#filePick");
@@ -506,6 +577,20 @@ function renderScreen() {
 
   /* -------- saved summary -------- */
   if (S.saved) {
+    if (isLinear()) {
+      const p = S.arc.derived || {};
+      el.innerHTML = `<div class="done-check">✓</div>
+        <div class="hero" style="padding-top:0">
+          <div class="voice">That's everything.</div>
+          <div class="sub">No verdict — this just sets the mirror up. You can change any of it later.</div>
+        </div>
+        <div class="eyebrow" style="margin-top:6px">What this writes (dc_profiles / dc_goals)</div>
+        <ul class="feeds">${Object.entries(p).map(([k, v]) =>
+          `<li><b>${esc(k)}</b>${v === null ? "—" : esc(v)}</li>`).join("")}</ul>
+        <p class="quiet" style="margin-top:12px">Screening thresholds are provisional pending clinical review. Mechanism only — no safety copy or routing lives here.</p>
+        <button class="bigbtn" style="margin-top:18px" data-preset="reset">Start over</button>`;
+      return;
+    }
     const answered = Object.keys(S.arc.answers).filter(answeredComplete);
     if (Object.values(S.arc.journal).some((t) => t && t.trim())) answered.push("journal");
     const seen = new Set(), items = [];
@@ -516,11 +601,31 @@ function renderScreen() {
     el.innerHTML = `<div class="done-check">✓</div>
       <div class="hero" style="padding-top:0">
         <div class="voice">Saved.</div>
-        <div class="sub">${S.arc.tags.includes("broke-own-rule") ? "Rule broken, honestly logged — that’s the point of this thing." : "No verdict from us. It’s on the record, and the record is yours."}</div>
+        <div class="sub">${S.arc.tags.includes("broke_own_rule") ? "Rule broken, honestly logged — that’s the point of this thing." : "No verdict from us. It’s on the record, and the record is yours."}</div>
       </div>
       <div class="eyebrow" style="margin-top:6px">What this one feeds</div>
       <ul class="feeds">${items.map((f) => `<li><b>${f[0]}</b>${f[1]}</li>`).join("")}</ul>
       <button class="bigbtn" style="margin-top:18px" data-preset="reset">Log another</button>`;
+    return;
+  }
+
+  /* -------- linear flow (onboarding) -------- */
+  if (isLinear()) {
+    const seq = TREE.branches.main.sequence;
+    let html = "";
+    let lastMoment = null;
+    for (const g of groupIds(seq)) {
+      const m = node(g.ids[0]) ? node(g.ids[0]).moment : null;
+      if (m !== lastMoment) {
+        if (lastMoment !== null) html += `</div>`;
+        html += `<div class="moment"><div class="eyebrow">${(MOMENT_TITLES[m] || (() => m))()}</div>`;
+        lastMoment = m;
+      }
+      html += cardHTML(g.ids);
+    }
+    if (lastMoment !== null) html += `</div>`;
+    html += `<div class="savebar"><button class="save" ${floorMet() ? "" : "disabled"} data-act="save">${floorMet() ? "Finish" : "A few required answers to go"}</button></div>`;
+    el.innerHTML = html;
     return;
   }
 
@@ -577,8 +682,9 @@ function renderInspector() {
 
 /* ================= events (delegated) ================= */
 document.addEventListener("click", (e) => {
-  const btn = e.target.closest("[data-preset],[data-act]");
+  const btn = e.target.closest("[data-preset],[data-act],[data-config]");
   if (!btn) return;
+  if (btn.dataset.config) { loadConfig(btn.dataset.config); return; }
   if (btn.dataset.preset) { preset(btn.dataset.preset); return; }
   switch (btn.dataset.act) {
     case "chip": answerChip(btn.dataset.node, btn.dataset.val); break;
@@ -608,19 +714,26 @@ function initTree(cfg, label) {
   TREE = cfg;
   NODES = Object.fromEntries(cfg.nodes.map((n) => [n.id, n]));
   SOURCE = label;
-  $("#hdrVersion").textContent = `incident tree · v${cfg.tree_version} · deterministic config preview`;
+  const kind = cfg.flow === "linear" ? "linear flow" : "incident tree";
+  $("#hdrVersion").textContent = `${kind} · v${cfg.tree_version} · deterministic config preview`;
+  for (const b of document.querySelectorAll(".incident-only")) {
+    b.style.display = cfg.flow === "linear" ? "none" : "";
+  }
   reset();
 }
-(async function boot() {
+async function loadConfig(key) {
+  const url = CONFIG_URLS[key];
   try {
-    const res = await fetch(CONFIG_URL);
+    const res = await fetch(url);
     if (!res.ok) throw new Error("HTTP " + res.status);
-    initTree(await res.json(), "config/tree.v1.json (fetched)");
+    initTree(await res.json(), url.replace("../", ""));
   } catch (e) {
-    render(); // shows the loader with file-input fallback
+    TREE = null;
+    render(); // loader with file-input fallback (file:// pages can't fetch)
     renderInspector();
   }
-})();
+}
+loadConfig(DEFAULT_CONFIG);
 </script>
 </body>
 </html>

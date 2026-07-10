@@ -22,6 +22,7 @@ function stubEl() {
 }
 const documentStub = {
   querySelector(sel) { return elements[sel] ?? (elements[sel] = stubEl()); },
+  querySelectorAll() { return []; },
   addEventListener() {},
 };
 const fetchStub = async () => { throw new Error("no network in smoke test"); };
@@ -58,9 +59,9 @@ check("drank: QTY exact + number meets floor", api.floorMet());
 check("drank: QTY shape is {value:'exact',number:7}",
   JSON.stringify(api.getS().arc.answers.QTY) === '{"value":"exact","number":7}');
 
-// broke-own-rule: B4 intention x drank outcome
+// broke_own_rule: B4 intention x drank outcome (snake_case per rev B ruling)
 api.answerChip("B4", "had_a_limit");
-check("drank: broke-own-rule tag fires", api.getS().arc.tags.includes("broke-own-rule"));
+check("drank: broke_own_rule tag fires", api.getS().arc.tags.includes("broke_own_rule"));
 
 // F1 real fight spawns depth (spawn rules read the answer)
 api.answerChip("F1", "real_fight");
@@ -124,6 +125,7 @@ api.preset("live");
 const live = api.getS();
 check("live: E1 answered {value:'tapped'}", live.arc.answers.E1.value === "tapped");
 check("live: entry mode urge_now, arc open", live.arc.entry === "urge_now" && live.arc.status === "open");
+check("live: live_capture tag fires (tap sentinel rule)", live.arc.tags.includes("live_capture"));
 
 // --- multi max_select cap (F5 <= 2) ---
 api.preset("drank");
@@ -137,6 +139,73 @@ check("F5 max_select 2 enforced",
 api.answerChip("B2", "stressed");
 api.skipNodes("B2");
 check("skip removes the answer", api.getS().arc.answers.B2 === undefined);
+
+/* ================= onboarding (linear flow) ================= */
+const onboarding = JSON.parse(readFileSync(join(root, "config/onboarding.v1.json"), "utf8"));
+api.initTree(onboarding, "smoke-onboarding");
+
+const floor = api.requiredIds();
+const defaulted = floor.filter((id) => onboarding.nodes.find((n) => n.id === id)?.default_value !== undefined);
+check("onboarding: floor is 6 required nodes", floor.length === 6);
+check("onboarding: required path is 5 taps (goal preselected), under the 8-tap ceiling",
+  floor.length - defaulted.length === 5 && floor.length <= 8);
+check("onboarding: GOAL defaults to understand_my_drinking",
+  api.getS().arc.answers.GOAL?.value === "understand_my_drinking");
+check("onboarding: floor not met before answering", !api.floorMet());
+
+api.answerChip("AGE", "25_39");
+api.answerChip("DWK", "8_14");
+api.answerChip("AC1", "2_3_week");        // 3
+api.answerChip("AC2", "3_4");             // 1
+api.answerChip("AC3", "less_than_monthly"); // 1
+check("onboarding: floor met after 5 taps", api.floorMet());
+
+let d = api.getS().arc.derived;
+check("onboarding: derived audit_c_score = 5", d.audit_c_score === 5);
+check("onboarding: score 5, no gender -> elevated (default threshold 4, provisional)",
+  d.screen_band === "elevated (provisional)");
+check("onboarding: profile mapping (age_band, goal_type)",
+  d.age_band === "25_39" && d.goal_type === "understand_my_drinking");
+
+// gender-sensitive banding through the harness
+api.answerChip("GEN", "woman");
+d = api.getS().arc.derived;
+check("onboarding: woman threshold applies", d.screen_band === "elevated (provisional)");
+api.skipNodes("GEN");
+check("onboarding: GEN skippable, floor still met", api.floorMet());
+
+/* ================= scoring module: 3 known input/output sets ================= */
+const { auditC, screenBand, scoreInstrument } = await import(
+  new URL("file://" + join(root, "tools/scoring.mjs").replace(/\\/g, "/"))
+);
+const bands = onboarding.scoring.audit_c.bands;
+
+// set 1: all zeros -> 0, none for everyone
+check("auditC(0,0,0) = 0", auditC(0, 0, 0) === 0);
+check("score 0 -> none (woman)", screenBand(0, "woman", bands) === "none");
+check("score 0 -> none (man)", screenBand(0, "man", bands) === "none");
+
+// set 2: (1,1,1) -> 3, elevated for women only
+check("auditC(1,1,1) = 3", auditC(1, 1, 1) === 3);
+check("score 3 -> elevated (woman)", screenBand(3, "woman", bands) === "elevated");
+check("score 3 -> none (man)", screenBand(3, "man", bands) === "none");
+check("score 3 -> none (gender skipped)", screenBand(3, null, bands) === "none");
+check("score 4 -> elevated (man)", screenBand(4, "man", bands) === "elevated");
+
+// set 3: (2,2,3) -> 7 high; (4,4,4) -> 12 high
+check("auditC(2,2,3) = 7", auditC(2, 2, 3) === 7);
+check("score 7 -> high (any gender)", screenBand(7, "woman", bands) === "high" && screenBand(7, "man", bands) === "high");
+check("auditC(4,4,4) = 12 -> high", screenBand(auditC(4, 4, 4), null, bands) === "high");
+
+// out-of-range input throws
+let threw = false;
+try { auditC(5, 0, 0); } catch { threw = true; }
+check("auditC rejects out-of-range items", threw);
+
+// scoreInstrument agrees with the harness path
+const si = scoreInstrument(onboarding, "audit_c",
+  { AC1: { value: "2_3_week" }, AC2: { value: "3_4" }, AC3: { value: "less_than_monthly" } }, "woman");
+check("scoreInstrument matches harness (5, elevated)", si.score === 5 && si.band === "elevated");
 
 console.log(failures ? `\n${failures} FAILURE(S)` : "\nall checks passed");
 process.exit(failures ? 1 : 0);

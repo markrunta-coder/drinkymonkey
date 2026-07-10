@@ -20,14 +20,16 @@
 
 import { readFileSync } from "node:fs";
 
-const MOMENTS = ["entry", "outcome", "before", "fight", "after", "metrics"];
+const INCIDENT_MOMENTS = ["entry", "outcome", "before", "fight", "after", "metrics"];
+const LINEAR_MOMENTS = ["profile", "audit", "goal"];
+const MOMENTS = [...INCIDENT_MOMENTS, ...LINEAR_MOMENTS];
 const INPUT_TYPES = ["tap", "single", "multi", "chips", "number", "text"];
 const CHOICE_TYPES = ["single", "multi", "chips"];
-const BRANCHES = ["live", "drank", "resisted", "delayed"];
+const INCIDENT_BRANCHES = ["live", "drank", "resisted", "delayed"];
 const CARD_MOMENTS = ["before", "fight", "after", "metrics"];
 const OUTCOMES = ["drank", "resisted", "delayed"];
-const MAX_FLOOR = 3;
 const MAX_DEPTH = 3;
+const TAP_SENTINEL = "tapped"; // what a tap node's answer value persists as
 
 const errors = [];
 const warnings = [];
@@ -52,6 +54,12 @@ try {
 if (!Number.isInteger(cfg.tree_version) || cfg.tree_version < 1) {
   err("tree_version must be a positive integer");
 }
+if (cfg.flow !== undefined && !["incident", "linear"].includes(cfg.flow)) {
+  err(`flow ${JSON.stringify(cfg.flow)} must be "incident" or "linear"`);
+}
+const FLOW = cfg.flow === "linear" ? "linear" : "incident";
+const BRANCHES = FLOW === "linear" ? ["main"] : INCIDENT_BRANCHES;
+const MAX_FLOOR = FLOW === "linear" ? 8 : 3; // spec rule vs Brief 003 rule
 if (!Array.isArray(cfg.nodes) || cfg.nodes.length === 0) {
   console.error("nodes must be a non-empty array — nothing else to check");
   process.exit(2);
@@ -123,6 +131,18 @@ for (const [id, n] of byId) {
   if (n.allow_secondary && n.input_type !== "single") {
     err(`${id}: allow_secondary is only valid on single`);
   }
+  if (n.default_value !== undefined) {
+    if (!["single", "chips"].includes(n.input_type)) {
+      err(`${id}: default_value is only valid on single/chips`);
+    } else if (!(n.options ?? []).some((o) => o.value === n.default_value)) {
+      err(`${id}: default_value "${n.default_value}" is not an option value`);
+    }
+  }
+  for (const o of n.options ?? []) {
+    if (o.score !== undefined && (!Number.isInteger(o.score) || o.score < 0)) {
+      err(`${id}: option "${o.value}" score must be a non-negative integer`);
+    }
+  }
 
   const optionValues = new Set((n.options ?? []).map((o) => o.value));
   for (const [i, r] of (n.spawn_rules ?? []).entries()) {
@@ -177,6 +197,25 @@ for (const b of BRANCHES) {
       }
     }
   }
+  if (FLOW === "linear") {
+    if (br.cards) err(`branch ${b}: linear flows use "sequence", not "cards"`);
+    if (!Array.isArray(br.sequence) || br.sequence.length === 0) {
+      err(`branch ${b}: linear flows need a non-empty "sequence" (all nodes in display order)`);
+    } else {
+      const seen = new Set();
+      for (const id of br.sequence) {
+        if (!byId.has(id)) { err(`branch ${b}: sequence references missing node "${id}"`); continue; }
+        if (seen.has(id)) err(`branch ${b}: sequence lists ${id} twice`);
+        seen.add(id);
+        referenced.add(id);
+      }
+      for (const id of br.floor ?? []) {
+        if (byId.has(id) && !seen.has(id)) err(`branch ${b}: floor node ${id} is missing from sequence`);
+      }
+    }
+  } else if (br.sequence) {
+    err(`branch ${b}: "sequence" is only valid in linear flows`);
+  }
   for (const m of Object.keys(br.cards ?? {})) {
     if (!CARD_MOMENTS.includes(m)) {
       err(`branch ${b}: unknown card moment "${m}"`);
@@ -227,8 +266,8 @@ for (const [id, n] of byId) {
 // --------------------------------------------------------------- tag rules
 for (const [i, t] of (cfg.tag_rules ?? []).entries()) {
   const where = `tag_rules[${i}]`;
-  if (typeof t.add_tag !== "string" || !/^[a-z0-9][a-z0-9_-]*$/.test(t.add_tag)) {
-    err(`${where}: add_tag ${JSON.stringify(t.add_tag)} is invalid (lowercase, - or _ separators)`);
+  if (typeof t.add_tag !== "string" || !/^[a-z][a-z0-9_]*$/.test(t.add_tag)) {
+    err(`${where}: add_tag ${JSON.stringify(t.add_tag)} is invalid (snake_case, per the rev B naming ruling)`);
   }
   const n = byId.get(t.node);
   if (!n) {
@@ -236,6 +275,7 @@ for (const [i, t] of (cfg.tag_rules ?? []).entries()) {
     continue;
   }
   const optionValues = new Set((n.options ?? []).map((o) => o.value));
+  if (n.input_type === "tap") optionValues.add(TAP_SENTINEL); // tap answers persist {value:"tapped"}
   if (!Array.isArray(t.if_value_in) || t.if_value_in.length === 0) {
     err(`${where}: if_value_in must be a non-empty array`);
   } else {
@@ -245,6 +285,38 @@ for (const [i, t] of (cfg.tag_rules ?? []).entries()) {
   }
   if (t.if_outcome !== undefined && !OUTCOMES.includes(t.if_outcome)) {
     err(`${where}: if_outcome "${t.if_outcome}" is not one of ${OUTCOMES.join(" | ")}`);
+  }
+}
+
+// ----------------------------------------------------- scored instruments
+for (const [name, inst] of Object.entries(cfg.scoring ?? {})) {
+  const where = `scoring.${name}`;
+  if (!/^[a-z][a-z0-9_]*$/.test(name)) err(`${where}: instrument name must be snake_case`);
+  if (!Array.isArray(inst.sum_of) || inst.sum_of.length === 0) {
+    err(`${where}: sum_of must be a non-empty array of node ids`);
+  } else {
+    for (const id of inst.sum_of) {
+      const n = byId.get(id);
+      if (!n) { err(`${where}: sum_of node "${id}" does not exist`); continue; }
+      for (const o of n.options ?? []) {
+        if (o.score === undefined) err(`${where}: option "${o.value}" of ${id} is missing a score`);
+      }
+      if (!n.options || !n.options.length) err(`${where}: node ${id} has no options to score`);
+    }
+  }
+  const bands = inst.bands;
+  if (typeof bands !== "object" || bands === null || !Object.keys(bands).length) {
+    err(`${where}: bands must be a non-empty object`);
+  } else {
+    for (const [band, mins] of Object.entries(bands)) {
+      if (typeof mins !== "object" || mins === null || !Number.isInteger(mins.default)) {
+        err(`${where}: band "${band}" needs an integer "default" minimum (thresholds are config values, not code)`);
+        continue;
+      }
+      for (const [k, v] of Object.entries(mins)) {
+        if (!Number.isInteger(v) || v < 0) err(`${where}: band "${band}" minimum "${k}" must be a non-negative integer`);
+      }
+    }
   }
 }
 

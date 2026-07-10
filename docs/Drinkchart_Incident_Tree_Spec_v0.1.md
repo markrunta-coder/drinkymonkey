@@ -1,6 +1,6 @@
 # Drinkchart — Incident Tree Specification v0.1
 
-**Detailed design · Incident logging · July 2026 · rev A (D1 traceability added, social drill-down proposed)**
+**Detailed design · Incident logging · July 2026 · rev B (decisions resolved · snake_case tags · metrics ruling)**
 **Governing rules:** deterministic tree, versioned config (data, not code), no AI at runtime. Floor ≤3 taps. Depth invited, never required. Free text available at every moment. Arcs reopenable.
 
 ---
@@ -60,7 +60,7 @@ D1 (if delayed): "And then?" → drank anyway | didn't drink | still deciding (a
 | B1 | What was behind it? | single primary + optional 1 secondary | stress / habit·routine / social / boredom / sleep / reward / craving / escape / other+text | — (driver drill-downs are v2 tree expansions) |
 | B2 | How were you feeling? | multi ≤3 | stressed / anxious / bored / lonely / tired / flat / angry / happy / restless / numb | — |
 | B3 | Where / with whom? | two singles | home / bar / restaurant / someone's / event / out · alone / partner / friends / family / colleagues | — |
-| B4 | Had you told yourself anything about drinking today? | single | wasn't going to / had a limit / no plan / planned to | "wasn't going to" or "had a limit" + outcome=drank → auto-tag **broke-own-rule** |
+| B4 | Had you told yourself anything about drinking today? | single | wasn't going to / had a limit / no plan / planned to | "wasn't going to" or "had a limit" + outcome=drank → auto-tag **broke_own_rule** |
 
 ### Fight (drank path)
 
@@ -108,7 +108,7 @@ D1 (if delayed): "And then?" → drank anyway | didn't drink | still deciding (a
 
 ## 4. Branching Rules — v1
 
-Deliberately shallow. Only three conditionals exist in v1: **F1 → F2/F3** (real fight spawns depth), **B4 × O1 → broke-own-rule tag**, **D1 → branch resolution** — plus a proposed fourth, **B1 = social → B1a** (pressure vs. connection drill-down), pending Decision 1. Depth from entry never exceeds 3. Driver drill-downs (stress → source; social → pressure vs. connection), context-conditional questions, and history-aware prompts are v2+ tree versions, added when incident data shows which branches earn their place.
+Deliberately shallow. Four conditionals exist in v1: **F1 → F2/F3** (real fight spawns depth), **B4 × O1 → broke_own_rule tag**, **D1 → branch resolution**, and **B1 = social → B1a** (pressure vs. connection drill-down — confirmed). Depth from entry never exceeds 3. Further driver drill-downs (stress → source), context-conditional questions, and history-aware prompts are v2+ tree versions, added when incident data shows which branches earn their place.
 
 ## 5. Tree-as-Config Contract
 
@@ -126,7 +126,7 @@ Every node exists because something reads it. If a node feeds nothing, it gets c
 | Node(s) | Feeds |
 |---|---|
 | B1 | primary drivers, driver × quantity, driver → heaviest sessions, action selection |
-| B4 × O1 | broke-own-rule rate (the dissonance trend) |
+| B4 × O1 | broke_own_rule rate (the dissonance trend) |
 | F5 / A4 | entrapment trend ("am I stuck?") over 30/90 days |
 | A1 vs B1 | promise gap: expected benefit vs. delivered |
 | F2, F6 | what resistance tactics work *for this user* — personal pattern, resisted-side |
@@ -140,7 +140,9 @@ Every node exists because something reads it. If a node feeds nothing, it gets c
 
 The tree collects context per-incident, so onboarding shrinks to: age band, gender (optional), self-reported drinks/week baseline, drinking-since (optional), AUDIT-C screen, goal (default: understand my drinking). **Weight and height are dropped** — they served the retired physiological engine and feed nothing in the current design.
 
-## 8. Open Decisions (blocking v1 config)
+## 8. Decisions — Resolved (CC Brief 002, July 2026)
+
+All seven adopted as proposed below. Social = single "social" chip + confirmed conditional B1a. Tag convention: snake_case everywhere (broke_own_rule, delayed_first, live_capture).
 
 1. Driver start-set — proposed: the 8 above + other. **Social pressure vs. connection resolution:** keep a single "social" chip at top level, add conditional **B1a — "Going along, or enjoying it?"** (going along with others / enjoying the company). Restores the 1:1 action mapping (pressure → "set the intended limit before arriving") without widening the top-level list; adds a fourth v1 conditional. Alternative: two top-level chips (9 + other). Celebration/confidence/enjoyment deferred to v2 either way.
 2. Quantity bands — proposed chips: 1–2 / 3–4 / 5–6 / 7–9 / 10+ / exact.

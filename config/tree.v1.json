@@ -165,7 +165,7 @@
         { "value": "no_plan", "label": "No plan" },
         { "value": "planned_to", "label": "Planned to drink" }
       ],
-      "notes": "Combined with outcome=drank this feeds the broke-own-rule tag (see tag_rules)."
+      "notes": "Combined with outcome=drank this feeds the broke_own_rule tag (see tag_rules)."
     },
     {
       "id": "F1",
@@ -407,12 +407,17 @@
       "node": "B4",
       "if_value_in": ["wasnt_going_to", "had_a_limit"],
       "if_outcome": "drank",
-      "add_tag": "broke-own-rule"
+      "add_tag": "broke_own_rule"
     },
     {
       "node": "O1",
       "if_value_in": ["delayed"],
       "add_tag": "delayed_first"
+    },
+    {
+      "node": "E1",
+      "if_value_in": ["tapped"],
+      "add_tag": "live_capture"
     }
   ]
 }

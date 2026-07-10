@@ -10,7 +10,13 @@
     "tree_version": {
       "type": "integer",
       "minimum": 1,
-      "description": "Monotonically increasing. Answers persist with the version they were captured under."
+      "description": "Monotonically increasing per flow family. Answers persist with the version they were captured under."
+    },
+    "flow": {
+      "type": "string",
+      "enum": ["incident", "linear"],
+      "default": "incident",
+      "description": "incident = the four-branch capture tree (floor <= 3 per branch). linear = a single ordered flow (e.g. onboarding; floor <= 8, branch key 'main' with a 'sequence'). Lint enforces the per-flow rules."
     },
     "notes": { "type": "string" },
     "nodes": {
@@ -20,20 +26,25 @@
     },
     "branches": {
       "type": "object",
-      "description": "One entry per outcome branch plus the live-urge entry mode. floor = the required minimum path; everything else is invited cards (renderer shows max 3, 'more' reveals the rest, every card skippable).",
-      "required": ["live", "drank", "resisted", "delayed"],
+      "description": "incident flow: exactly live/drank/resisted/delayed. linear flow: exactly 'main'. floor = the required minimum; everything else is invited and skippable.",
       "additionalProperties": false,
       "properties": {
         "live": { "$ref": "#/$defs/branch" },
         "drank": { "$ref": "#/$defs/branch" },
         "resisted": { "$ref": "#/$defs/branch" },
-        "delayed": { "$ref": "#/$defs/branch" }
+        "delayed": { "$ref": "#/$defs/branch" },
+        "main": { "$ref": "#/$defs/branch" }
       }
     },
     "tag_rules": {
       "type": "array",
-      "description": "Deterministic cross-node tagging (e.g. B4 x O1 -> broke-own-rule). Evaluated in code when the referenced answer or the arc outcome changes; resulting tags persist on the arc.",
+      "description": "Deterministic cross-node tagging (e.g. B4 x O1 -> broke_own_rule). Evaluated in code when the referenced answer or the arc outcome changes; resulting tags persist on the arc.",
       "items": { "$ref": "#/$defs/tag_rule" }
+    },
+    "scoring": {
+      "type": "object",
+      "description": "Scored instruments (e.g. AUDIT-C). Thresholds are CONFIG VALUES, never code. Score = sum of the selected option's 'score' across sum_of nodes; band = highest band whose (gender-specific or default) minimum the score meets.",
+      "additionalProperties": { "$ref": "#/$defs/instrument" }
     }
   },
   "$defs": {
@@ -49,7 +60,8 @@
         },
         "moment": {
           "type": "string",
-          "enum": ["entry", "outcome", "before", "fight", "after", "metrics"]
+          "enum": ["entry", "outcome", "before", "fight", "after", "metrics", "profile", "audit", "goal"],
+          "description": "entry..metrics are incident moments; profile/audit/goal are linear-flow (onboarding) sections."
         },
         "prompt": { "type": "string", "minLength": 1 },
         "input_type": {
@@ -72,6 +84,10 @@
           "type": "boolean",
           "default": false,
           "description": "Only floor nodes may be required (lint enforces): depth is invited, never required."
+        },
+        "default_value": {
+          "type": "string",
+          "description": "Preselected option value (must be one of options[].value). Counts as answered without a tap — e.g. onboarding goal defaults to understand_my_drinking."
         },
         "allow_secondary": {
           "type": "boolean",
@@ -127,6 +143,11 @@
         "requires_datetime": {
           "type": "boolean",
           "description": "Selecting this option opens a date-time picker (T1 'pick date & time')."
+        },
+        "score": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Instrument score contributed when this option is selected (AUDIT-C items: 0-4). Every option of a node referenced by scoring.*.sum_of must carry one (lint enforces)."
         }
       }
     },
@@ -153,9 +174,15 @@
         "floor": {
           "type": "array",
           "minItems": 1,
-          "maxItems": 3,
+          "maxItems": 8,
           "items": { "type": "string" },
-          "description": "Ordered required minimum. 'Done' is visible the moment the floor is met."
+          "description": "Ordered required minimum. 'Done' is visible the moment the floor is met. Lint enforces <= 3 for incident flows (spec rule) and <= 8 for linear flows (Brief 003)."
+        },
+        "sequence": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "linear flows only: every node of the flow in display order (floor nodes plus skippable optionals)."
         },
         "cards": {
           "type": "object",
@@ -184,7 +211,8 @@
         "if_value_in": {
           "type": "array",
           "minItems": 1,
-          "items": { "type": "string" }
+          "items": { "type": "string" },
+          "description": "Option values of the node — or, for tap nodes (which have no options), the tap sentinel 'tapped' (E1 -> live_capture)."
         },
         "if_outcome": {
           "type": "string",
@@ -193,9 +221,37 @@
         },
         "add_tag": {
           "type": "string",
-          "pattern": "^[a-z0-9][a-z0-9_-]*$",
-          "description": "Tag names are spec-canonical (broke-own-rule, delayed_first) — match the spec's spelling exactly."
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "snake_case, per the rev B naming ruling (broke_own_rule, delayed_first, live_capture)."
         }
+      }
+    },
+    "instrument": {
+      "type": "object",
+      "required": ["sum_of", "bands"],
+      "additionalProperties": false,
+      "properties": {
+        "sum_of": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "Node ids whose selected-option scores are summed."
+        },
+        "bands": {
+          "type": "object",
+          "description": "band name -> minimum score, overall or per gender value with a 'default' fallback. Highest band whose minimum the score meets wins; below every band = 'none'.",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["default"],
+            "properties": { "default": { "type": "integer", "minimum": 0 } },
+            "additionalProperties": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "provisional": {
+          "type": "boolean",
+          "description": "True until clinical review signs the thresholds off."
+        },
+        "notes": { "type": "string" }
       }
     }
   }

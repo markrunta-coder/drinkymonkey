@@ -1,0 +1,139 @@
+{
+  "tree_version": 1,
+  "flow": "linear",
+  "notes": "Onboarding per spec rev B section 7 and Brief 003. Required path: AGE + DWK + AC1-3 = 5 taps (GOAL preselects understand_my_drinking; tap only to change) - under the 8-tap ceiling. GEN and SINCE are skippable. AUDIT-C wording is verbatim; item scores 0-4; thresholds live in scoring.audit_c.bands and are PROVISIONAL pending clinical review.",
+  "nodes": [
+    {
+      "id": "AGE",
+      "moment": "profile",
+      "prompt": "How old are you?",
+      "input_type": "single",
+      "required": true,
+      "options": [
+        { "value": "18_24", "label": "18–24" },
+        { "value": "25_39", "label": "25–39" },
+        { "value": "40_59", "label": "40–59" },
+        { "value": "60_plus", "label": "60+" }
+      ]
+    },
+    {
+      "id": "GEN",
+      "moment": "profile",
+      "prompt": "Gender",
+      "input_type": "single",
+      "options": [
+        { "value": "man", "label": "Man" },
+        { "value": "woman", "label": "Woman" },
+        { "value": "other", "label": "Other" }
+      ],
+      "notes": "Optional - the card's skip affordance covers 'skip' from the brief's option list. Screening thresholds fall back to the default band when skipped."
+    },
+    {
+      "id": "DWK",
+      "moment": "profile",
+      "prompt": "Drinks in a typical week?",
+      "input_type": "single",
+      "required": true,
+      "options": [
+        { "value": "0_3", "label": "0–3" },
+        { "value": "4_7", "label": "4–7" },
+        { "value": "8_14", "label": "8–14" },
+        { "value": "15_21", "label": "15–21" },
+        { "value": "22_plus", "label": "22+" }
+      ]
+    },
+    {
+      "id": "SINCE",
+      "moment": "profile",
+      "prompt": "Drinking since…",
+      "input_type": "single",
+      "options": [
+        { "value": "lt_1y", "label": "Less than a year" },
+        { "value": "1_5y", "label": "1–5 years" },
+        { "value": "5_15y", "label": "5–15 years" },
+        { "value": "15y_plus", "label": "15+ years" }
+      ]
+    },
+    {
+      "id": "AC1",
+      "moment": "audit",
+      "prompt": "How often do you have a drink containing alcohol?",
+      "input_type": "single",
+      "required": true,
+      "options": [
+        { "value": "never", "label": "Never", "score": 0 },
+        { "value": "monthly_or_less", "label": "Monthly or less", "score": 1 },
+        { "value": "2_4_month", "label": "2–4 times a month", "score": 2 },
+        { "value": "2_3_week", "label": "2–3 times a week", "score": 3 },
+        { "value": "4_plus_week", "label": "4 or more times a week", "score": 4 }
+      ],
+      "notes": "AUDIT-C item 1, verbatim."
+    },
+    {
+      "id": "AC2",
+      "moment": "audit",
+      "prompt": "How many drinks on a typical day when drinking?",
+      "input_type": "single",
+      "required": true,
+      "options": [
+        { "value": "1_2", "label": "1–2", "score": 0 },
+        { "value": "3_4", "label": "3–4", "score": 1 },
+        { "value": "5_6", "label": "5–6", "score": 2 },
+        { "value": "7_9", "label": "7–9", "score": 3 },
+        { "value": "10_plus", "label": "10+", "score": 4 }
+      ],
+      "notes": "AUDIT-C item 2, verbatim."
+    },
+    {
+      "id": "AC3",
+      "moment": "audit",
+      "prompt": "How often do you have six or more drinks on one occasion?",
+      "input_type": "single",
+      "required": true,
+      "options": [
+        { "value": "never", "label": "Never", "score": 0 },
+        { "value": "less_than_monthly", "label": "Less than monthly", "score": 1 },
+        { "value": "monthly", "label": "Monthly", "score": 2 },
+        { "value": "weekly", "label": "Weekly", "score": 3 },
+        { "value": "daily_almost", "label": "Daily or almost daily", "score": 4 }
+      ],
+      "notes": "AUDIT-C item 3, verbatim."
+    },
+    {
+      "id": "GOAL",
+      "moment": "goal",
+      "prompt": "What do you want from this?",
+      "input_type": "single",
+      "required": true,
+      "default_value": "understand_my_drinking",
+      "options": [
+        { "value": "understand_my_drinking", "label": "Understand my drinking" },
+        { "value": "reduce_overall", "label": "Reduce overall drinking" },
+        { "value": "fewer_heavy_sessions", "label": "Fewer heavy sessions" },
+        { "value": "more_af_days", "label": "More alcohol-free days" },
+        { "value": "fewer_consecutive_days", "label": "Fewer consecutive drinking days" },
+        { "value": "longer_gaps", "label": "Longer gaps between sessions" },
+        { "value": "earlier_stop", "label": "Stopping earlier" },
+        { "value": "weekly_max", "label": "A weekly maximum" }
+      ],
+      "notes": "Neutral default preselected - the mirror stance. Directional goals unlock suggestions from the approved action library; the app never imposes one."
+    }
+  ],
+  "branches": {
+    "main": {
+      "floor": ["AGE", "DWK", "AC1", "AC2", "AC3", "GOAL"],
+      "sequence": ["AGE", "GEN", "DWK", "SINCE", "AC1", "AC2", "AC3", "GOAL"]
+    }
+  },
+  "scoring": {
+    "audit_c": {
+      "sum_of": ["AC1", "AC2", "AC3"],
+      "provisional": true,
+      "notes": "PROVISIONAL thresholds pending clinical review. Mechanism only - no safety copy, no routing here; programmatic safety messages are authored design-side.",
+      "bands": {
+        "elevated": { "woman": 3, "default": 4 },
+        "high": { "default": 7 }
+      }
+    }
+  }
+}

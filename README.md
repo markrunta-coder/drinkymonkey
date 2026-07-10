@@ -6,11 +6,14 @@ No app code, no AI at runtime.
 
 | Path | What it is |
 |---|---|
-| `schema/tree-config.schema.json` | JSON Schema for tree configs (documentation + IDE validation) |
-| `config/tree.v1.json` | Seed tree v1 — the spec's node catalog, spawn rules, and floors, verbatim |
-| `db/schema.sql` | Postgres DDL: `users`, `tree_versions`, `arcs`, `answers`, metrics/queue views |
+| `schema/tree-config.schema.json` | JSON Schema for flow configs — incident trees and linear flows (onboarding) |
+| `config/tree.v1.json` | Seed incident tree v1 — the spec's node catalog, spawn rules, and floors, verbatim |
+| `config/onboarding.v1.json` | Onboarding flow v1 — profile bands, AUDIT-C verbatim, goal selection |
+| `db/schema.sql` | Postgres DDL (Supabase, `dc_` prefix, RLS): arcs, answers, profiles, goals, config stores, views |
 | `tools/lint-tree.mjs` | Config lint — the source of truth for validity (zero dependencies) |
+| `tools/scoring.mjs` | Pure AUDIT-C scoring: `auditC(q1,q2,q3)` → 0–12, `screenBand(score, gender, bands)` |
 | `tools/preview.html` | Click-testable preview of any config — renders the canonical JSON generically |
+| `tools/smoke-preview.mjs` | Headless test: capture floors, spawns, tags, onboarding flow, scoring |
 
 ## Preview harness
 
@@ -51,6 +54,30 @@ fall back to hiding any node whose `input_type` it does not recognize —
 that is what lets future config versions add capabilities without stranding
 old app builds.
 
+## Onboarding as a config (Brief 003)
+
+Onboarding is the same engine: `config/onboarding.v1.json` is a **linear
+flow** (`"flow": "linear"`) rendered by the same generic renderer. Schema
+extensions that made this possible (all minimal, all documented in the schema
+itself): `flow` (incident | linear), linear moments (`profile`/`audit`/`goal`),
+a `main` branch with an ordered `sequence`, `default_value` (the goal
+preselects `understand_my_drinking`), per-option `score`, and a top-level
+`scoring` section. Lint enforces floor ≤ 3 for incident flows and ≤ 8 for
+linear flows; the shipped required path is **5 taps** (age, drinks/week,
+AUDIT-C ×3 — goal is preselected).
+
+**Scoring.** AUDIT-C items carry `score: 0–4` on their options; the total is
+0–12. Thresholds are **config values, never code**, in
+`scoring.audit_c.bands` — currently *elevated* ≥ 3 (women) / ≥ 4 (men, other,
+or gender skipped), *high* ≥ 7. **These bands are PROVISIONAL pending
+clinical review.** `tools/scoring.mjs` is the pure mechanism
+(`auditC`, `screenBand`, `scoreInstrument`); it contains no safety copy and
+no routing — programmatic safety messaging is authored design-side.
+
+**Naming ruling (rev B):** all tags and machine names are snake_case —
+`broke_own_rule`, `delayed_first`, `live_capture`. The schema and lint
+enforce the pattern.
+
 ## Answer value shapes (`answers.value` jsonb)
 
 | input_type | Shape | Example |
@@ -77,7 +104,7 @@ old app builds.
    field); "other+text"-style options use option-level `requires_text`.
    QTY "exact #" and T1 "pick date-time" use `requires_number` /
    `requires_datetime` the same way.
-5. **`tag_rules` is a top-level section** — the B4 × O1 → `broke-own-rule`
+5. **`tag_rules` is a top-level section** — the B4 × O1 → `broke_own_rule`
    conditional produces a tag, not a node, so `spawn_rules` cannot express it.
    Tags are recomputed by code whenever a contributing answer changes.
 6. **`spawn_rules` gains `then_branch` and `then_action:"keep_open"`** for D1:
@@ -101,7 +128,7 @@ old app builds.
     "social" chip drills into *going along / enjoying the company*, restoring
     the 1:1 driver→action mapping. Node ids allow a lowercase drill-down
     suffix (`B1a`); tag names match the spec's spelling exactly
-    (`broke-own-rule`, `delayed_first`).
+    (superseded by the rev B snake_case ruling: `broke_own_rule`, `delayed_first`).
 
 ## Resolved decisions (Brief 002 — none remaining open)
 
